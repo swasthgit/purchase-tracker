@@ -11,14 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, PlusCircle, Copy, UploadCloud, Eye, Printer } from 'lucide-react';
+import { Trash2, PlusCircle, Copy, UploadCloud, Download, CheckCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { SelectOption, PurchaseItem as PurchaseItemType, Partner, ItemDefinition } from '@/types';
-import { getEmployeeIds, getPartnerNames, getItemNames, OTHER_ITEM_VALUE } from '@/lib/data';
+import { getEmployeeIdsFS, getPartnerNames, getItemNames, OTHER_ITEM_VALUE } from '@/lib/data'; // getEmployeeIdsFS for Firebase
 import { submitPurchase } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
 import { BillPreview } from '@/components/bill-preview'; 
+import * as XLSX from 'xlsx';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -30,6 +31,7 @@ const PurchaseItemSchema = z.object({
   price: z.coerce.number().min(0.01, "Price must be greater than 0.01"),
   itemName: z.string().min(1, "Item name is required"),
   customItemName: z.string().optional(),
+  itemNameDisplay: z.string(), // To store the final name for display/excel
 }).superRefine((data, ctx) => {
   if (data.itemName === OTHER_ITEM_VALUE && (!data.customItemName || data.customItemName.trim() === '')) {
     ctx.addIssue({
@@ -68,8 +70,8 @@ export function PurchaseForm() {
   const [itemImagePreviews, setItemImagePreviews] = useState<Record<string, string | null>>({});
   
   const [totalBill, setTotalBill] = useState(0);
-  const [showBillPreview, setShowBillPreview] = useState(false);
-  const [billData, setBillData] = useState<PurchaseFormValues | null>(null);
+  const [showBillPreviewDialog, setShowBillPreviewDialog] = useState(false);
+  const [submittedBillData, setSubmittedBillData] = useState<PurchaseFormValues | null>(null);
 
 
   const { register, control, handleSubmit, reset, formState: { errors }, setValue, watch, getValues } = useForm<PurchaseFormValues>({
@@ -78,7 +80,7 @@ export function PurchaseForm() {
       userId: '',
       partnerName: '',
       userName: '',
-      items: [{ id: crypto.randomUUID(), clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '' }],
+      items: [{ id: crypto.randomUUID(), clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '', itemNameDisplay: '' }],
       uploadedFile: undefined,
     },
   });
@@ -101,8 +103,7 @@ export function PurchaseForm() {
 
   useEffect(() => {
     async function fetchData() {
-      const ids = await getEmployeeIds();
-      setEmployeeIdOptions(ids.map(id => ({ value: id, label: id })));
+      setEmployeeIdOptions(await getEmployeeIdsFS()); // Fetch from Firebase
       setPartnerNames(await getPartnerNames());
       setItemDefinitions(await getItemNames());
     }
@@ -125,25 +126,30 @@ export function PurchaseForm() {
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
+      toast({ title: t('submittingPurchase') });
       const formData = new FormData();
       formData.append('userId', data.userId);
       formData.append('partnerName', data.partnerName);
       formData.append('userName', data.userName);
-      formData.append('items', JSON.stringify(data.items.map(item => ({
+      
+      const itemsWithDisplayNames = data.items.map(item => ({
         ...item,
-        // Use customItemName if "Other" is selected
-        itemNameDisplay: item.itemName === OTHER_ITEM_VALUE ? item.customItemName : itemDefinitions.find(def => def.value === item.itemName)?.label || item.itemName,
-      }))));
+        itemNameDisplay: item.itemName === OTHER_ITEM_VALUE 
+          ? item.customItemName || t('other') 
+          : itemDefinitions.find(def => def.value === item.itemName)?.label || item.itemName,
+      }));
+      formData.append('items', JSON.stringify(itemsWithDisplayNames));
+
       if (data.uploadedFile) {
         formData.append('uploadedFile', data.uploadedFile);
       }
 
       const result = await submitPurchase(null, formData);
-      if (result.success) {
+      if (result.success && result.data) {
         toast({ title: t('operationSuccess'), description: t('billGeneratedSuccess')});
-        setBillData(data); // Save data for bill preview
-        setShowBillPreview(true); // Show bill preview trigger
-        reset();
+        setSubmittedBillData(result.data as PurchaseFormValues); 
+        setShowBillPreviewDialog(true);
+        reset(); // Reset form after successful submission and data is set for preview
         setFilePreview(null);
         setItemImagePreviews({});
         setTotalBill(0);
@@ -158,7 +164,7 @@ export function PurchaseForm() {
 
   const addNewItem = () => {
     const newItemId = crypto.randomUUID();
-    append({ id: newItemId, clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '' });
+    append({ id: newItemId, clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '', itemNameDisplay: '' });
     setItemImagePreviews(prev => ({...prev, [newItemId]: null}));
   };
 
@@ -166,7 +172,7 @@ export function PurchaseForm() {
     if (fields.length > 0) {
       const lastItem = fields[fields.length - 1];
       const newItemId = crypto.randomUUID();
-      append({ ...lastItem, id: newItemId });
+      append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay }); // copy itemNameDisplay too
       const lastItemDef = itemDefinitions.find(i => i.value === lastItem.itemName && i.value !== OTHER_ITEM_VALUE);
       setItemImagePreviews(prev => ({...prev, [newItemId]: lastItemDef ? lastItemDef.imageUrl : null}));
     }
@@ -196,14 +202,62 @@ export function PurchaseForm() {
   const handleItemNameChange = (itemId: string, newItemNameValue: string, index: number) => {
     setValue(`items.${index}.itemName`, newItemNameValue);
     if (newItemNameValue !== OTHER_ITEM_VALUE) {
-      setValue(`items.${index}.customItemName`, ''); // Clear custom name if not "Other"
+      setValue(`items.${index}.customItemName`, ''); 
       const selectedItemDefinition = itemDefinitions.find(i => i.value === newItemNameValue);
+      setValue(`items.${index}.itemNameDisplay`, selectedItemDefinition?.label || newItemNameValue);
       setItemImagePreviews(prev => ({
         ...prev,
         [itemId]: selectedItemDefinition ? selectedItemDefinition.imageUrl : null,
       }));
     } else {
-      setItemImagePreviews(prev => ({ ...prev, [itemId]: null })); // No preview for "Other"
+      setValue(`items.${index}.itemNameDisplay`, watch(`items.${index}.customItemName`) || t('other'));
+      setItemImagePreviews(prev => ({ ...prev, [itemId]: null })); 
+    }
+  };
+
+  const handleCustomItemNameChange = (index: number, customName: string) => {
+    setValue(`items.${index}.customItemName`, customName);
+    if (watch(`items.${index}.itemName`) === OTHER_ITEM_VALUE) {
+      setValue(`items.${index}.itemNameDisplay`, customName || t('other'));
+    }
+  };
+
+  const handleDownloadExcel = () => {
+    if (!submittedBillData) return;
+    toast({ title: t('generatingExcel') });
+
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Bill Summary
+      const summaryData = [
+        [t('userId'), submittedBillData.userId],
+        [t('partnerName'), submittedBillData.partnerName],
+        [t('userName'), submittedBillData.userName],
+        [t('uploadFile'), submittedBillData.uploadedFile ? submittedBillData.uploadedFile.name : t('noFileUploaded') || 'No File Uploaded'],
+        [], // Empty row for spacing
+        [t('totalBill'), totalBill.toFixed(2)]
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Bill Summary");
+
+      // Sheet 2: Item Details
+      const itemsHeader = [t('clinicCode'), t('itemName'), t('quantity'), t('pricePerUnit'), t('itemLineTotal')];
+      const itemsData = submittedBillData.items.map(item => [
+        item.clinicCode,
+        item.itemNameDisplay,
+        item.quantity,
+        Number(item.price).toFixed(2),
+        (Number(item.quantity) * Number(item.price)).toFixed(2)
+      ]);
+      const wsItems = XLSX.utils.aoa_to_sheet([itemsHeader, ...itemsData]);
+      XLSX.utils.book_append_sheet(wb, wsItems, "Item Details");
+
+      XLSX.writeFile(wb, `PurchaseBill_${submittedBillData.userId}_${Date.now()}.xlsx`);
+      toast({ title: t('excelDownloadSuccess')});
+    } catch (error) {
+      console.error("Error generating Excel:", error);
+      toast({ variant: "destructive", title: t('excelDownloadFailed')});
     }
   };
 
@@ -269,7 +323,7 @@ export function PurchaseForm() {
 
           <h3 className="text-xl font-semibold text-secondary">{t('itemsPurchased')}</h3>
           {fields.map((item, index) => {
-            const currentItemName = watch(`items.${index}.itemName`);
+            const currentItemNameValue = watch(`items.${index}.itemName`);
             return (
             <Card key={item.id} className="p-4 space-y-4 bg-muted/30">
                <CardHeader className="p-0 mb-2">
@@ -317,7 +371,7 @@ export function PurchaseForm() {
                           </Select>
                         )}
                       />
-                      {currentItemName !== OTHER_ITEM_VALUE && itemImagePreviews[item.id] && (
+                      {currentItemNameValue !== OTHER_ITEM_VALUE && itemImagePreviews[item.id] && (
                         <div className="mt-2">
                            <Image 
                             src={itemImagePreviews[item.id]!} 
@@ -332,10 +386,15 @@ export function PurchaseForm() {
                       {errors.items?.[index]?.itemName && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.itemName?.message}</p>}
                     </div>
                 </div>
-                {currentItemName === OTHER_ITEM_VALUE && (
+                {currentItemNameValue === OTHER_ITEM_VALUE && (
                   <div>
                     <Label htmlFor={`items.${index}.customItemName`}>{t('customItemName')}</Label>
-                    <Input id={`items.${index}.customItemName`} {...register(`items.${index}.customItemName`)} placeholder={t('enterCustomItemName')} />
+                    <Input 
+                      id={`items.${index}.customItemName`} 
+                      {...register(`items.${index}.customItemName`)} 
+                      placeholder={t('enterCustomItemName')} 
+                      onChange={(e) => handleCustomItemNameChange(index, e.target.value)}
+                    />
                     {errors.items?.[index]?.customItemName && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.customItemName?.message}</p>}
                   </div>
                 )}
@@ -346,7 +405,7 @@ export function PurchaseForm() {
                       {errors.items?.[index]?.quantity && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.quantity?.message}</p>}
                     </div>
                     <div>
-                      <Label htmlFor={`items.${index}.price`}>{t('price')}</Label>
+                      <Label htmlFor={`items.${index}.price`}>{t('pricePerUnit')}</Label>
                       <Input id={`items.${index}.price`} type="number" step="0.01" {...register(`items.${index}.price`)} />
                       {errors.items?.[index]?.price && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.price?.message}</p>}
                     </div>
@@ -359,7 +418,7 @@ export function PurchaseForm() {
               </CardFooter>
             </Card>
           )})}
-           {errors.items && typeof errors.items === 'object' && !Array.isArray(errors.items) && (
+           {errors.items && typeof errors.items === 'object' && !Array.isArray(errors.items) && ( // For general array errors like min length
             <p className="text-sm text-destructive mt-1">{errors.items.message || errors.items.root?.message}</p>
           )}
 
@@ -406,26 +465,20 @@ export function PurchaseForm() {
           </div>
 
           <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isPending}>
-            {isPending ? `${t('submit')}...` : t('submit')}
+            {isPending ? `${t('submittingPurchase')}...` : t('submit')}
           </Button>
 
-          {billData && showBillPreview && (
-            <div className="mt-4 text-center">
-              <Button type="button" variant="secondary" onClick={() => setShowBillPreview(true)}>
-                <Eye className="mr-2 h-4 w-4" /> {t('viewBill')}
-              </Button>
-            </div>
-          )}
         </form>
       </CardContent>
     </Card>
-    {billData && (
+    {submittedBillData && (
       <BillPreview
-        isOpen={showBillPreview}
-        onClose={() => setShowBillPreview(false)}
-        billData={billData}
+        isOpen={showBillPreviewDialog}
+        onClose={() => setShowBillPreviewDialog(false)}
+        billData={submittedBillData}
         itemDefinitions={itemDefinitions}
         t={t}
+        onDownloadExcel={handleDownloadExcel}
       />
     )}
     </>

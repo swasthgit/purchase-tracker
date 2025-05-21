@@ -4,13 +4,14 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, PlusCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { AdminManagedItem } from '@/types';
+import { getPrinterNamesFS } from '@/lib/data';
+import { addPrinterNameAction, removePrinterNameAction } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -24,22 +25,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-
-// Mimicking actions for direct data interaction
-const addPrinterNameDirect = async (name: string) => {
-  const { addPrinterName } = await import('@/lib/data');
-  return addPrinterName(name);
-}
-const removePrinterNameDirect = async (id: string) => {
-  const { removePrinterName } = await import('@/lib/data');
-  return removePrinterName(id);
-}
-const getPrinterNamesDirect = async () => {
-  const { getPrinterNames } = await import('@/lib/data');
-  return getPrinterNames();
-}
-
-
 export function PrinterManager() {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -51,7 +36,7 @@ export function PrinterManager() {
 
 
   const fetchPrinterNames = async () => {
-    setPrinterNames(await getPrinterNamesDirect());
+    setPrinterNames(await getPrinterNamesFS());
   };
 
   useEffect(() => {
@@ -64,7 +49,7 @@ export function PrinterManager() {
       return;
     }
     startTransition(async () => {
-      const result = await addPrinterNameDirect(newPrinterName.trim());
+      const result = await addPrinterNameAction(newPrinterName.trim());
       if (result.success) {
         toast({ title: t('operationSuccess'), description: `${t('printerName')} "${newPrinterName}" ${t('addNew')}d.` });
         setNewPrinterName('');
@@ -77,12 +62,12 @@ export function PrinterManager() {
 
   const handleRemovePrinterName = async (id: string) => {
     startTransition(async () => {
-      const result = await removePrinterNameDirect(id);
+      const result = await removePrinterNameAction(id);
       if (result.success) {
         toast({ title: t('operationSuccess'), description: `${t('printerName')} removed.` });
         fetchPrinterNames();
       } else {
-        toast({ variant: "destructive", title: t('errorOccurred'), description: t('errorOccurred') });
+        toast({ variant: "destructive", title: t('errorOccurred'), description: t(result.message || 'errorOccurred') });
       }
       setItemToRemove(null);
     });
@@ -145,7 +130,7 @@ export function PrinterManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('confirmRemove')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`This action cannot be undone. This will permanently delete the printer: ${itemNameForDialog}.`}
+               {t('confirmRemove')} {t('printerName')}: {itemNameForDialog}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

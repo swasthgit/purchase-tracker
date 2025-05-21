@@ -1,14 +1,10 @@
 // src/lib/data.ts
 import type { SelectOption, AdminManagedItem, Partner, ItemDefinition } from '@/types';
+import { db } from './firebase';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
 
-// Mock data - in a real app, this would come from a database
-let employeeIds: string[] = [
-  'E001',
-  'E002',
-  'E003',
-];
-
-let partnerNames: Partner[] = [
+// Static data - these could also be moved to Firebase if dynamic management is needed
+const partnerNames: Partner[] = [
   { id: 'P001', name: 'Global Health Supplies' },
   { id: 'P002', name: 'MediQuick Partners' },
   { id: 'P003', name: 'PharmaSource Inc.' },
@@ -86,7 +82,7 @@ let partnerNames: Partner[] = [
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
 
-let itemNames: ItemDefinition[] = [
+const itemNames: ItemDefinition[] = [
   { value: 'Cells', label: 'Cells', imageUrl: 'https://placehold.co/100x100.png?text=Cells', dataAiHint: "battery cells" },
   { value: 'Shelf', label: 'Shelf', imageUrl: 'https://placehold.co/100x100.png?text=Shelf', dataAiHint: "storage shelf" },
   { value: 'Chair', label: 'Chair', imageUrl: 'https://placehold.co/100x100.png?text=Chair', dataAiHint: "office chair" },
@@ -124,67 +120,121 @@ let itemNames: ItemDefinition[] = [
   { value: OTHER_ITEM_VALUE, label: 'Other (Specify)', imageUrl: 'https://placehold.co/100x100.png?text=Other', dataAiHint: "custom item" },
 ];
 
-
-let printerNames: AdminManagedItem[] = [
-  { id: 'PRN001', name: 'HP LaserJet Pro M404dn' },
-  { id: 'PRN002', name: 'Brother HL-L2350DW' },
-  { id: 'PRN003', name: 'Epson EcoTank ET-2720' },
-];
-
-// Functions to interact with mock data
-export const getEmployeeIds = async (): Promise<string[]> => {
-  return [...employeeIds];
-};
-
-export const addEmployeeId = async (id: string): Promise<{success: boolean, message?: string}> => {
-  if (employeeIds.find(e => e === id)) {
-    return { success: false, message: 'idExists' };
+// Functions to interact with Firebase for Employee IDs
+export const getEmployeeIdsFS = async (): Promise<SelectOption[]> => {
+  try {
+    const employeeIdsCollection = collection(db, 'employee_ids');
+    const snapshot = await getDocs(employeeIdsCollection);
+    return snapshot.docs.map(doc => ({ value: doc.data().employeeId, label: doc.data().employeeId as string }));
+  } catch (error) {
+    console.error("Error fetching employee IDs from Firestore:", error);
+    return [];
   }
-  employeeIds.push(id);
-  return { success: true };
 };
 
-export const removeEmployeeId = async (id: string): Promise<{success: boolean}> => {
-  employeeIds = employeeIds.filter(e => e !== id);
-  return { success: true };
+export const addEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
+  try {
+    const employeeIdsCollection = collection(db, 'employee_ids');
+    const q = query(employeeIdsCollection, where("employeeId", "==", employeeIdValue));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return { success: false, message: 'idExists' };
+    }
+    await addDoc(employeeIdsCollection, { employeeId: employeeIdValue, createdAt: new Date() });
+    return { success: true };
+  } catch (error) {
+    console.error("Error adding employee ID to Firestore:", error);
+    return { success: false, message: 'errorOccurred' };
+  }
 };
 
+export const removeEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
+  try {
+    const employeeIdsCollection = collection(db, 'employee_ids');
+    const q = query(employeeIdsCollection, where("employeeId", "==", employeeIdValue));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      return { success: false, message: 'ID not found' };
+    }
+    const docId = snapshot.docs[0].id;
+    await deleteDoc(doc(db, 'employee_ids', docId));
+    return { success: true };
+  } catch (error) {
+    console.error("Error removing employee ID from Firestore:", error);
+    return { success: false, message: 'errorOccurred' };
+  }
+};
+
+export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boolean, count: number, errors: string[]}> => {
+  let addedCount = 0;
+  const errorIds: string[] = [];
+  const employeeIdsCollection = collection(db, 'employee_ids');
+  const batch = writeBatch(db);
+
+  for (const id of ids) {
+    const q = query(employeeIdsCollection, where("employeeId", "==", id));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      const newDocRef = doc(employeeIdsCollection); // Auto-generate ID
+      batch.set(newDocRef, { employeeId: id, createdAt: new Date() });
+      addedCount++;
+    } else {
+      errorIds.push(id);
+    }
+  }
+  try {
+    await batch.commit();
+    return { success: true, count: addedCount, errors: errorIds };
+  } catch (error) {
+     console.error("Error bulk adding employee IDs to Firestore:", error);
+     return { success: false, count: 0, errors: ids }; // All failed in case of batch error
+  }
+};
+
+
+// Functions to interact with Firebase for Printer Names
+export const getPrinterNamesFS = async (): Promise<AdminManagedItem[]> => {
+  try {
+    const printerNamesCollection = collection(db, 'printer_names');
+    const snapshot = await getDocs(printerNamesCollection);
+    return snapshot.docs.map(doc => ({ id: doc.id, name: doc.data().name as string }));
+  } catch (error) {
+    console.error("Error fetching printer names from Firestore:", error);
+    return [];
+  }
+};
+
+export const addPrinterNameFS = async (name: string): Promise<{success: boolean, id?: string, message?: string}> => {
+  try {
+    const printerNamesCollection = collection(db, 'printer_names');
+    const q = query(printerNamesCollection, where("name", "==", name));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return { success: false, message: 'nameExists' };
+    }
+    const docRef = await addDoc(printerNamesCollection, { name, createdAt: new Date() });
+    return { success: true, id: docRef.id };
+  } catch (error) {
+    console.error("Error adding printer name to Firestore:", error);
+    return { success: false, message: 'errorOccurred' };
+  }
+};
+
+export const removePrinterNameFS = async (id: string): Promise<{success: boolean, message?: string}> => {
+ try {
+    await deleteDoc(doc(db, 'printer_names', id));
+    return { success: true };
+  } catch (error) {
+    console.error("Error removing printer name from Firestore:", error);
+    return { success: false, message: 'errorOccurred' };
+  }
+};
+
+// Static data getters (could be refactored to fetch from Firebase if needed in future)
 export const getPartnerNames = async (): Promise<Partner[]> => {
   return [...partnerNames];
 };
 
 export const getItemNames = async (): Promise<ItemDefinition[]> => {
   return [...itemNames];
-};
-
-export const getPrinterNames = async (): Promise<AdminManagedItem[]> => {
-  return [...printerNames];
-};
-
-export const addPrinterName = async (name: string): Promise<{success: boolean, message?: string}> => {
-   if (printerNames.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-    return { success: false, message: 'nameExists' };
-  }
-  const newId = `PRN${String(Date.now()).slice(-3)}${Math.floor(Math.random()*100)}`;
-  printerNames.push({ id: newId, name });
-  return { success: true };
-};
-
-export const removePrinterName = async (id: string): Promise<{success: boolean}> => {
-  printerNames = printerNames.filter(p => p.id !== id);
-  return { success: true };
-};
-
-export const bulkAddEmployeeIds = async (ids: string[]): Promise<{success: boolean, count: number, errors: string[]}> => {
-  let addedCount = 0;
-  const errors: string[] = [];
-  ids.forEach(id => {
-    if (!employeeIds.find(e => e === id)) {
-      employeeIds.push(id);
-      addedCount++;
-    } else {
-      errors.push(id);
-    }
-  });
-  return { success: true, count: addedCount, errors };
 };

@@ -4,15 +4,14 @@
 import React, { useState, useEffect, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, PlusCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { SelectOption } from '@/types';
-// Using direct data interaction for simplicity in admin panel
-// import { getEmployeeIds, addEmployeeIdAction, removeEmployeeIdAction } from '@/lib/actions-mimic'; 
+import { getEmployeeIdsFS } from '@/lib/data'; 
+import { addEmployeeIdAction, removeEmployeeIdAction } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -26,23 +25,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-
-// Mimicking actions for direct data interaction (replace with server actions if preferred)
-const addEmployeeIdDirect = async (id: string) => {
-  const { addEmployeeId } = await import('@/lib/data');
-  return addEmployeeId(id);
-}
-const removeEmployeeIdDirect = async (id: string) => {
-  const { removeEmployeeId } = await import('@/lib/data');
-  return removeEmployeeId(id);
-}
-const getEmployeeIdsDirect = async () => {
-  const { getEmployeeIds } = await import('@/lib/data');
-  const ids = await getEmployeeIds(); // returns string[]
-  return ids.map(id => ({ value: id, label: id })); // map to SelectOption[]
-}
-
-
 export function EmployeeIdManager() {
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -52,7 +34,7 @@ export function EmployeeIdManager() {
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
 
   const fetchEmployeeIds = async () => {
-    setEmployeeIdOptions(await getEmployeeIdsDirect());
+    setEmployeeIdOptions(await getEmployeeIdsFS());
   };
 
   useEffect(() => {
@@ -65,7 +47,7 @@ export function EmployeeIdManager() {
       return;
     }
     startTransition(async () => {
-      const result = await addEmployeeIdDirect(newEmployeeId.trim());
+      const result = await addEmployeeIdAction(newEmployeeId.trim());
       if (result.success) {
         toast({ title: t('operationSuccess'), description: `${t('employeeId')} "${newEmployeeId}" ${t('addNew')}d.` });
         setNewEmployeeId('');
@@ -78,12 +60,12 @@ export function EmployeeIdManager() {
 
   const handleRemoveEmployeeId = async (id: string) => {
     startTransition(async () => {
-      const result = await removeEmployeeIdDirect(id);
+      const result = await removeEmployeeIdAction(id);
       if (result.success) {
         toast({ title: t('operationSuccess'), description: `${t('employeeId')} "${id}" removed.` });
         fetchEmployeeIds();
       } else {
-        toast({ variant: "destructive", title: t('errorOccurred'), description: t('errorOccurred') });
+        toast({ variant: "destructive", title: t('errorOccurred'), description: t(result.message || 'errorOccurred') });
       }
       setItemToRemove(null);
     });
@@ -142,7 +124,7 @@ export function EmployeeIdManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('confirmRemove')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {`This action cannot be undone. This will permanently delete the employee ID: ${itemToRemove}.`}
+              {t('confirmRemove')} {t('employeeId')}: {itemToRemove}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

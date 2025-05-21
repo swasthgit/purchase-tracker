@@ -9,24 +9,23 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+} from "@/components/ui/dialog"; // Removed DialogClose as we use custom buttons
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { PurchaseFormValues } from "./purchase-form";
 import type { ItemDefinition } from "@/types";
-import { OTHER_ITEM_VALUE } from "@/lib/data";
-import { Printer } from "lucide-react";
+import { Download, CheckCircle, Printer } from "lucide-react";
 
 interface BillPreviewProps {
   isOpen: boolean;
   onClose: () => void;
   billData: PurchaseFormValues | null;
-  itemDefinitions: ItemDefinition[];
+  itemDefinitions: ItemDefinition[]; // Still needed for mapping item names if not pre-processed
   t: (key: string) => string;
+  onDownloadExcel: () => void;
 }
 
-export function BillPreview({ isOpen, onClose, billData, itemDefinitions, t }: BillPreviewProps) {
+export function BillPreview({ isOpen, onClose, billData, itemDefinitions, t, onDownloadExcel }: BillPreviewProps) {
   if (!billData) return null;
 
   const handlePrint = () => {
@@ -34,7 +33,6 @@ export function BillPreview({ isOpen, onClose, billData, itemDefinitions, t }: B
     if (printableContent) {
       const printWindow = window.open('', '_blank');
       printWindow?.document.write('<html><head><title>Print Bill</title>');
-      // Add basic styling for print
       printWindow?.document.write(`
         <style>
           body { font-family: sans-serif; margin: 20px; }
@@ -54,13 +52,8 @@ export function BillPreview({ isOpen, onClose, billData, itemDefinitions, t }: B
     }
   };
 
-  const itemsWithDisplayNames = billData.items.map(item => {
-    const definition = itemDefinitions.find(def => def.value === item.itemName);
-    const displayName = item.itemName === OTHER_ITEM_VALUE 
-      ? item.customItemName || t('other')
-      : definition?.label || item.itemName;
-    return { ...item, displayName };
-  });
+  // Bill data items should already have itemNameDisplay from the form submission logic
+  const itemsWithDisplayNames = billData.items;
 
   const totalBillAmount = itemsWithDisplayNames.reduce((sum, item) => {
     return sum + (Number(item.quantity) * Number(item.price));
@@ -100,7 +93,7 @@ export function BillPreview({ isOpen, onClose, billData, itemDefinitions, t }: B
               <tbody>
                 {itemsWithDisplayNames.map((item) => (
                   <tr key={item.id}>
-                    <td className="p-2 border">{item.displayName}</td>
+                    <td className="p-2 border">{item.itemNameDisplay}</td>
                     <td className="p-2 border text-right">{item.quantity}</td>
                     <td className="p-2 border text-right">{Number(item.price).toFixed(2)}</td>
                     <td className="p-2 border text-right">{(Number(item.quantity) * Number(item.price)).toFixed(2)}</td>
@@ -115,16 +108,19 @@ export function BillPreview({ isOpen, onClose, billData, itemDefinitions, t }: B
             {t('totalBill')}: {totalBillAmount.toFixed(2)}
           </div>
         </div>
-        <DialogFooter className="mt-auto pt-4 border-t">
-          <Button variant="outline" onClick={handlePrint}>
+        <DialogFooter className="mt-auto pt-4 border-t flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+          <Button variant="outline" onClick={handlePrint} className="w-full sm:w-auto">
             <Printer className="mr-2 h-4 w-4" />
             {t('printBill')}
           </Button>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">
-              {t('closeBill')}
-            </Button>
-          </DialogClose>
+          <Button variant="secondary" onClick={onDownloadExcel} className="w-full sm:w-auto">
+            <Download className="mr-2 h-4 w-4" />
+            {t('downloadExcel')}
+          </Button>
+          <Button type="button" onClick={onClose} className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90">
+            <CheckCircle className="mr-2 h-4 w-4" />
+            {t('finishBill')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
