@@ -105,9 +105,17 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
           const image = new window.Image();
           image.crossOrigin = "anonymous"; // Important for fetching images from other domains (like Firebase Storage)
           image.onload = () => resolve(image);
-          image.onerror = (err) => {
-            console.error("Error loading image for PDF:", file.url, err);
-            reject(new Error(`Failed to load image: ${file.name}`));
+          image.onerror = (eventOrMessage) => { // Changed parameter name
+            let reason = "Unknown error";
+            if (typeof eventOrMessage === 'string') {
+              reason = eventOrMessage;
+            } else if (eventOrMessage instanceof Event) { // Check if it's an Event object
+              reason = `Network error or CORS issue (event type: ${eventOrMessage.type})`;
+            } else if (eventOrMessage instanceof Error) { // Check if it's an Error object
+              reason = eventOrMessage.message;
+            }
+            console.error("Error loading image for PDF:", file.url, "Reason:", reason, "Details:", eventOrMessage);
+            reject(new Error(`Failed to load image '${file.name}'. Ensure CORS is configured on Firebase Storage. Reason: ${reason}`));
           };
           image.src = file.url;
         });
@@ -240,3 +248,4 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
     </Dialog>
   );
 }
+
