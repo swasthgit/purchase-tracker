@@ -1,7 +1,7 @@
 // src/components/bill-preview.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import type { PurchaseFormValues } from "./purchase-form"; // Make sure this aligns with actual type in purchase-form
+import type { PurchaseFormValues } from "./purchase-form";
 import type { UploadedFileMeta } from "@/types";
-import { Download, CheckCircle, Printer, FileText } from "lucide-react";
+import { Download, CheckCircle, Printer, FileText as FileIconLucide } from "lucide-react"; // Renamed FileText to avoid conflict if another local FileText exists
 import Image from 'next/image';
-import jsPDF from 'jspdf';
 import { useToast } from '@/hooks/use-toast';
 
 interface BillPreviewProps {
@@ -29,7 +28,6 @@ interface BillPreviewProps {
 
 export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: BillPreviewProps) {
   const { toast } = useToast();
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   if (!billData) return null;
 
@@ -60,7 +58,6 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
       printWindow?.document.write(`<h1 class="bill-title">${t('billDetails')}</h1>`);
       printWindow?.document.write(`<p class="dialog-description">${t('appName')} - ${new Date(billData.createdAt?.seconds ? billData.createdAt.seconds * 1000 : Date.now()).toLocaleString()}</p>`);
       
-      // Clone the printable area and remove the buttons section for printing
       const contentToPrint = printableContent.cloneNode(true) as HTMLElement;
       const buttonsSection = contentToPrint.querySelector('.print-buttons-section');
       if (buttonsSection) buttonsSection.parentNode?.removeChild(buttonsSection);
@@ -72,82 +69,6 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
     }
   };
   
-
-  const handleDownloadImagesAsPDF = async () => {
-    if (!billData || !billData.uploadedFiles || billData.uploadedFiles.length === 0) {
-      toast({ variant: "destructive", title: t('pdfGenerationFailed'), description: t('noImagesToConvertToPDF') });
-      return;
-    }
-
-    const imageFiles = billData.uploadedFiles.filter(file => file.type.startsWith('image/'));
-
-    if (imageFiles.length === 0) {
-      toast({ variant: "destructive", title: t('pdfGenerationFailed'), description: t('noImagesToConvertToPDF') });
-      return;
-    }
-
-    setIsGeneratingPdf(true);
-    toast({ title: t('generatingPDF') });
-
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4'); // Portrait, millimeters, A4
-      const pageMargin = 10; // mm
-      const pageWidth = pdf.internal.pageSize.getWidth() - 2 * pageMargin;
-      const pageHeight = pdf.internal.pageSize.getHeight() - 2 * pageMargin;
-
-      for (let i = 0; i < imageFiles.length; i++) {
-        const file = imageFiles[i];
-        if (i > 0) {
-          pdf.addPage();
-        }
-        
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const image = new window.Image();
-          image.crossOrigin = "anonymous"; // Important for fetching images from other domains (like Firebase Storage)
-          image.onload = () => resolve(image);
-          image.onerror = (eventOrMessage) => { // Changed parameter name
-            let reason = "Unknown error";
-            if (typeof eventOrMessage === 'string') {
-              reason = eventOrMessage;
-            } else if (eventOrMessage instanceof Event) { // Check if it's an Event object
-              reason = `Network error or CORS issue (event type: ${eventOrMessage.type})`;
-            } else if (eventOrMessage instanceof Error) { // Check if it's an Error object
-              reason = eventOrMessage.message;
-            }
-            console.error("Error loading image for PDF:", file.url, "Reason:", reason, "Details:", eventOrMessage);
-            reject(new Error(`Failed to load image '${file.name}'. Ensure CORS is configured on Firebase Storage. Reason: ${reason}`));
-          };
-          image.src = file.url;
-        });
-
-        const imgWidth = img.width;
-        const imgHeight = img.height;
-        const aspectRatio = imgWidth / imgHeight;
-
-        let pdfImgWidth = pageWidth;
-        let pdfImgHeight = pageWidth / aspectRatio;
-
-        if (pdfImgHeight > pageHeight) {
-          pdfImgHeight = pageHeight;
-          pdfImgWidth = pageHeight * aspectRatio;
-        }
-        
-        // Center image
-        const x = pageMargin + (pageWidth - pdfImgWidth) / 2;
-        const y = pageMargin + (pageHeight - pdfImgHeight) / 2;
-
-        pdf.addImage(img, file.type.split('/')[1].toUpperCase(), x, y, pdfImgWidth, pdfImgHeight);
-      }
-      pdf.save(`Uploaded_Images_${billData.userId || 'bill'}.pdf`);
-      toast({ title: t('pdfGeneratedSuccess') });
-    } catch (error) {
-      console.error("Error generating PDF with images:", error);
-      toast({ variant: "destructive", title: t('pdfGenerationFailed'), description: (error as Error).message || "Could not create PDF." });
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
-
   const itemsWithDisplayNames = billData.items;
   const totalBillAmount = billData.totalAmount;
 
@@ -177,7 +98,7 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                     {file.type.startsWith('image/') ? (
                        <Image src={file.url} alt={file.name} width={30} height={30} className="mr-2 rounded object-cover border" data-ai-hint="uploaded image" />
                     ) : (
-                      <FileText className="w-5 h-5 mr-2 text-muted-foreground" />
+                      <FileIconLucide className="w-5 h-5 mr-2 text-muted-foreground" />
                     )}
                     <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
                       {file.name}
@@ -228,17 +149,6 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
             <Download className="mr-2 h-4 w-4" />
             {t('downloadExcel')}
           </Button>
-          {billData.uploadedFiles && billData.uploadedFiles.some(f => f.type.startsWith('image/')) && (
-            <Button 
-              variant="secondary" 
-              onClick={handleDownloadImagesAsPDF} 
-              className="w-full sm:w-auto"
-              disabled={isGeneratingPdf}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              {isGeneratingPdf ? t('generatingPDF') : t('downloadUploadedImagesPDF')}
-            </Button>
-          )}
           <Button type="button" onClick={onClose} className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90">
             <CheckCircle className="mr-2 h-4 w-4" />
             {t('finishBill')}
@@ -248,4 +158,3 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
     </Dialog>
   );
 }
-
