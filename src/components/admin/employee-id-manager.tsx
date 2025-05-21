@@ -11,7 +11,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, PlusCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { SelectOption } from '@/types';
-import { getEmployeeIds, addEmployeeIdAction, removeEmployeeIdAction } from '@/lib/actions-mimic'; // Using mimic for direct data interaction
+// Using direct data interaction for simplicity in admin panel
+// import { getEmployeeIds, addEmployeeIdAction, removeEmployeeIdAction } from '@/lib/actions-mimic'; 
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -37,7 +38,8 @@ const removeEmployeeIdDirect = async (id: string) => {
 }
 const getEmployeeIdsDirect = async () => {
   const { getEmployeeIds } = await import('@/lib/data');
-  return getEmployeeIds();
+  const ids = await getEmployeeIds(); // returns string[]
+  return ids.map(id => ({ value: id, label: id })); // map to SelectOption[]
 }
 
 
@@ -45,12 +47,12 @@ export function EmployeeIdManager() {
   const { t } = useLanguage();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [employeeIds, setEmployeeIds] = useState<SelectOption[]>([]);
+  const [employeeIdOptions, setEmployeeIdOptions] = useState<SelectOption[]>([]);
   const [newEmployeeId, setNewEmployeeId] = useState('');
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
 
   const fetchEmployeeIds = async () => {
-    setEmployeeIds(await getEmployeeIdsDirect());
+    setEmployeeIdOptions(await getEmployeeIdsDirect());
   };
 
   useEffect(() => {
@@ -115,7 +117,7 @@ export function EmployeeIdManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {employeeIds.length > 0 ? employeeIds.map((emp) => (
+              {employeeIdOptions.length > 0 ? employeeIdOptions.map((emp) => (
                 <TableRow key={emp.value}>
                   <TableCell>{emp.label}</TableCell>
                   <TableCell className="text-right">
@@ -154,24 +156,3 @@ export function EmployeeIdManager() {
     </Card>
   );
 }
-
-// Create a dummy actions-mimic.ts if server actions are not used for direct data manipulation for admin panels
-// For now, this component will use direct imports from lib/data.ts as defined above.
-// If you create src/lib/actions-mimic.ts, it would look like:
-/*
-// src/lib/actions-mimic.ts
-"use server"; // or not, if it's just calling local functions
-import {
-  getEmployeeIds as dbGetEmployeeIds,
-  addEmployeeId as dbAddEmployeeId,
-  removeEmployeeId as dbRemoveEmployeeId,
-  // ... other data functions
-} from '@/lib/data';
-
-export const getEmployeeIds = dbGetEmployeeIds;
-export const addEmployeeIdAction = dbAddEmployeeId; // Renamed to match action style
-export const removeEmployeeIdAction = dbRemoveEmployeeId;
-// ...
-*/
-// This component is adjusted to use direct calls to mock data functions for simplicity within client component context.
-// If strict server actions are needed for these, they should be in `src/lib/actions.ts` and called accordingly.

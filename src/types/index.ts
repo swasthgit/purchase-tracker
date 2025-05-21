@@ -4,6 +4,12 @@ export interface SelectOption {
   label: string;
 }
 
+export interface ItemDefinition {
+  value: string;
+  label: string;
+  imageUrl: string;
+}
+
 export interface PurchaseItem {
   id: string; // Unique ID for the item in the list (e.g., UUID)
   clinicCode: string;

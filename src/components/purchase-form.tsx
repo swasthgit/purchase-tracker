@@ -13,16 +13,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription }
 import { Separator } from '@/components/ui/separator';
 import { Trash2, PlusCircle, Copy, UploadCloud } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
-import type { SelectOption, PurchaseItem as PurchaseItemType, Partner } from '@/types';
+import type { SelectOption, PurchaseItem as PurchaseItemType, Partner, ItemDefinition } from '@/types';
 import { getEmployeeIds, getPartnerNames, getItemNames } from '@/lib/data';
 import { submitPurchase } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
+import Image from 'next/image';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
 const PurchaseItemSchema = z.object({
-  id: z.string(), // Kept for client-side keying, not part of server validation directly here
+  id: z.string(), 
   clinicCode: z.string().min(1, "Clinic code is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   price: z.coerce.number().min(0.01, "Price must be greater than 0"),
@@ -50,10 +51,11 @@ export function PurchaseForm() {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
-  const [employeeIds, setEmployeeIds] = useState<SelectOption[]>([]);
+  const [employeeIdOptions, setEmployeeIdOptions] = useState<SelectOption[]>([]);
   const [partnerNames, setPartnerNames] = useState<Partner[]>([]);
-  const [itemNames, setItemNames] = useState<SelectOption[]>([]);
+  const [itemDefinitions, setItemDefinitions] = useState<ItemDefinition[]>([]);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [itemImagePreviews, setItemImagePreviews] = useState<Record<string, string | null>>({});
 
 
   const { register, control, handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<PurchaseFormValues>({
@@ -67,25 +69,35 @@ export function PurchaseForm() {
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
     name: 'items',
   });
 
   useEffect(() => {
     async function fetchData() {
-      setEmployeeIds(await getEmployeeIds());
+      const ids = await getEmployeeIds();
+      setEmployeeIdOptions(ids.map(id => ({ value: id, label: id })));
       setPartnerNames(await getPartnerNames());
-      setItemNames(await getItemNames());
+      setItemDefinitions(await getItemNames());
     }
     fetchData();
   }, []);
   
-  // Reset form fields when language changes to re-evaluate dropdown labels if needed
   useEffect(() => {
-    // This is a simple way to ensure dropdowns might re-render if their content depends on `t`
-    // In this case, labels are from `data.ts` so not strictly needed but good for complex scenarios
-  }, [language, t]);
+    // Reset item image previews when items array changes
+    const newPreviews: Record<string, string | null> = {};
+    fields.forEach(field => {
+        const currentItemValue = watch(`items.${fields.indexOf(field)}.itemName`);
+        if (currentItemValue) {
+            const def = itemDefinitions.find(i => i.value === currentItemValue);
+            newPreviews[field.id] = def ? def.imageUrl : null;
+        } else {
+            newPreviews[field.id] = null;
+        }
+    });
+    setItemImagePreviews(newPreviews);
+  }, [fields, itemDefinitions, watch]);
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
@@ -93,7 +105,7 @@ export function PurchaseForm() {
       formData.append('userId', data.userId);
       formData.append('partnerName', data.partnerName);
       formData.append('userName', data.userName);
-      formData.append('items', JSON.stringify(data.items)); // Send items as JSON string
+      formData.append('items', JSON.stringify(data.items));
       if (data.uploadedFile) {
         formData.append('uploadedFile', data.uploadedFile);
       }
@@ -103,11 +115,10 @@ export function PurchaseForm() {
         toast({ title: t('operationSuccess'), description: t(result.message as string) });
         reset();
         setFilePreview(null);
+        setItemImagePreviews({});
       } else {
         toast({ variant: "destructive", title: t('errorOccurred'), description: result.message || t('errorOccurred') });
-        // Handle field errors if returned
         if (result.errors) {
-          // You might want to map these errors to react-hook-form's setError
           console.error("Server validation errors:", result.errors);
         }
       }
@@ -115,14 +126,19 @@ export function PurchaseForm() {
   };
 
   const addNewItem = () => {
-    append({ id: crypto.randomUUID(), clinicCode: '', quantity: 1, price: 0, itemName: '' });
+    const newItemId = crypto.randomUUID();
+    append({ id: newItemId, clinicCode: '', quantity: 1, price: 0, itemName: '' });
+    setItemImagePreviews(prev => ({...prev, [newItemId]: null}));
   };
 
   const duplicateLastItem = () => {
     if (fields.length > 0) {
       const lastItem = fields[fields.length - 1];
-      // Create a new object, spread existing values, generate new ID
-      append({ ...lastItem, id: crypto.randomUUID() });
+      const newItemId = crypto.randomUUID();
+      append({ ...lastItem, id: newItemId });
+      const lastItemDef = itemDefinitions.find(i => i.value === lastItem.itemName);
+      setItemImagePreviews(prev => ({...prev, [newItemId]: lastItemDef ? lastItemDef.imageUrl : null}));
+
     }
   };
 
@@ -137,7 +153,7 @@ export function PurchaseForm() {
         };
         reader.readAsDataURL(file);
       } else {
-        setFilePreview(file.name); // Show file name for non-images
+        setFilePreview(file.name); 
       }
     } else {
       setValue('uploadedFile', undefined);
@@ -146,6 +162,14 @@ export function PurchaseForm() {
   };
   
   const currentFile = watch('uploadedFile');
+
+  const handleItemNameChange = (itemId: string, newItemNameValue: string) => {
+    const selectedItemDefinition = itemDefinitions.find(i => i.value === newItemNameValue);
+    setItemImagePreviews(prev => ({
+      ...prev,
+      [itemId]: selectedItemDefinition ? selectedItemDefinition.imageUrl : null,
+    }));
+  };
 
 
   return (
@@ -168,7 +192,7 @@ export function PurchaseForm() {
                       <SelectValue placeholder={t('selectUserId')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {employeeIds.map(emp => (
+                      {employeeIdOptions.map(emp => (
                         <SelectItem key={emp.value} value={emp.value}>{emp.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -219,24 +243,54 @@ export function PurchaseForm() {
                       <Input id={`items.${index}.clinicCode`} {...register(`items.${index}.clinicCode`)} />
                       {errors.items?.[index]?.clinicCode && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.clinicCode?.message}</p>}
                     </div>
-                    <div>
+                    <div className="flex flex-col">
                       <Label htmlFor={`items.${index}.itemName`}>{t('itemName')}</Label>
-                      <Controller
+                       <Controller
                         name={`items.${index}.itemName`}
                         control={control}
                         render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select 
+                            onValueChange={(value) => {
+                              field.onChange(value);
+                              handleItemNameChange(item.id, value);
+                            }} 
+                            value={field.value}
+                          >
                             <SelectTrigger id={`items.${index}.itemName`}>
                               <SelectValue placeholder={t('selectItemName')} />
                             </SelectTrigger>
                             <SelectContent>
-                              {itemNames.map(name => (
-                                <SelectItem key={name.value} value={name.value}>{name.label}</SelectItem>
+                              {itemDefinitions.map(def => (
+                                <SelectItem key={def.value} value={def.value}>
+                                  <div className="flex items-center">
+                                    <Image 
+                                      src={def.imageUrl} 
+                                      alt={def.label} 
+                                      width={24} 
+                                      height={24} 
+                                      className="mr-2 rounded-sm object-cover" 
+                                      data-ai-hint={def.dataAiHint} 
+                                    />
+                                    {def.label}
+                                  </div>
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       />
+                      {itemImagePreviews[item.id] && (
+                        <div className="mt-2">
+                           <Image 
+                            src={itemImagePreviews[item.id]!} 
+                            alt="Selected item preview" 
+                            width={64} 
+                            height={64} 
+                            className="rounded-md border object-cover"
+                            data-ai-hint="item preview"
+                          />
+                        </div>
+                      )}
                       {errors.items?.[index]?.itemName && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.itemName?.message}</p>}
                     </div>
                 </div>
@@ -292,7 +346,7 @@ export function PurchaseForm() {
             {currentFile && (
               <div className="mt-2 text-sm text-foreground/80">
                 {filePreview && filePreview.startsWith('data:image') ? (
-                    <img src={filePreview} alt="File preview" className="max-h-32 rounded-md border object-contain" data-ai-hint="document preview"/>
+                    <Image src={filePreview} alt="File preview" width={128} height={128} className="max-h-32 rounded-md border object-contain" data-ai-hint="document preview"/>
                 ) : (
                     <span>{filePreview || currentFile.name}</span>
                 )}
