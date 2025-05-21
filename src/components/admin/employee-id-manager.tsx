@@ -22,7 +22,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  // AlertDialogTrigger, // No longer needed here for the button in the loop
 } from "@/components/ui/alert-dialog";
 
 export function EmployeeIdManager() {
@@ -78,15 +77,15 @@ export function EmployeeIdManager() {
         <CardTitle>{t('manageEmployeeIds')}</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex space-x-2 mb-4">
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-4">
           <Input
             type="text"
             value={newEmployeeId}
             onChange={(e) => setNewEmployeeId(e.target.value)}
             placeholder={t('employeeId')}
-            className="flex-grow"
+            className="flex-grow text-base md:text-sm"
           />
-          <Button onClick={handleAddEmployeeId} disabled={isPending}>
+          <Button onClick={handleAddEmployeeId} disabled={isPending} className="w-full sm:w-auto">
             <PlusCircle className="h-4 w-4 mr-2" /> {t('addEmployeeId')}
           </Button>
         </div>
@@ -110,7 +109,7 @@ export function EmployeeIdManager() {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={2} className="text-center">{t('noEmployeeIds')}</TableCell>
+                  <TableCell colSpan={2} className="text-center h-24">{t('noEmployeeIds')}</TableCell>
                 </TableRow>
               )}
             </TableBody>

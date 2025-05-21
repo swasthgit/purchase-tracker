@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, writeBatch, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore'; // Removed unused getDocs, query, where, writeBatch, deleteDoc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   OTHER_ITEM_VALUE,
@@ -11,9 +11,15 @@ import {
   removeEmployeeIdFS as dbRemoveEmployeeIdFS,
   bulkAddEmployeeIdsFS as dbBulkAddEmployeeIdsFS,
   addPrinterNameFS as dbAddPrinterNameFS,
-  removePrinterNameFS as dbRemovePrinterNameFS
-} from '@/lib/data'; // Keep for OTHER_ITEM_VALUE
-import type { PurchaseItem } from '@/types';
+  removePrinterNameFS as dbRemovePrinterNameFS,
+  addPartnerFS as dbAddPartnerFS,
+  updatePartnerFS as dbUpdatePartnerFS,
+  removePartnerFS as dbRemovePartnerFS,
+  addItemDefinitionFS as dbAddItemDefinitionFS,
+  updateItemDefinitionFS as dbUpdateItemDefinitionFS,
+  removeItemDefinitionFS as dbRemoveItemDefinitionFS,
+} from '@/lib/data';
+import type { PurchaseItem, ItemDefinition, Partner } from '@/types';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -24,7 +30,7 @@ const PurchaseItemSchema = z.object({
   clinicCode: z.string().min(1, "Clinic code is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   price: z.coerce.number().min(0.01, "Price must be greater than 0.01"),
-  itemName: z.string().min(1, "Item name is required"),
+  itemName: z.string().min(1, "Item name is required"), // This will be the ID of the item_definition or OTHER_ITEM_VALUE
   customItemName: z.string().optional(),
   itemNameDisplay: z.string(), // Added for storing the display name
 }).superRefine((data, ctx) => {
@@ -39,7 +45,7 @@ const PurchaseItemSchema = z.object({
 
 const PurchaseFormSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  partnerName: z.string().min(1, "Partner name is required"),
+  partnerName: z.string().min(1, "Partner name is required"), // This will be the name of the partner
   userName: z.string().min(1, "User name is required"),
   items: z.array(PurchaseItemSchema).min(1, "At least one item is required"),
   uploadedFile: z
@@ -62,7 +68,7 @@ export async function submitPurchase(prevState: any, formData: FormData) {
         price: item.price,
         itemName: item.itemName,
         customItemName: item.customItemName,
-        itemNameDisplay: item.itemNameDisplay, // Make sure this is passed from form
+        itemNameDisplay: item.itemNameDisplay, 
     })) as PurchaseItem[];
     
     const validatedFields = PurchaseFormSchema.safeParse({
@@ -98,15 +104,15 @@ export async function submitPurchase(prevState: any, formData: FormData) {
 
     const purchaseData = {
       userId,
-      partnerName,
+      partnerName, // Storing partner name directly
       userName,
-      items: items.map(item => ({ // Store only necessary data, itemNameDisplay is already included
+      items: items.map(item => ({ 
         clinicCode: item.clinicCode,
         quantity: item.quantity,
         price: item.price,
-        itemName: item.itemName, // original value for "other" distinction
+        itemName: item.itemName, 
         customItemName: item.customItemName,
-        itemNameDisplay: item.itemNameDisplay, // The name to show in bill/excel
+        itemNameDisplay: item.itemNameDisplay, 
       })),
       fileUrl,
       createdAt: serverTimestamp(),
@@ -121,7 +127,7 @@ export async function submitPurchase(prevState: any, formData: FormData) {
   }
 }
 
-// Server actions for Employee ID management using Firebase
+// --- Employee ID Management Actions ---
 export async function addEmployeeIdAction(id: string) {
   if (!id || id.trim() === "") {
     return { success: false, message: "Employee ID cannot be empty." };
@@ -151,20 +157,16 @@ export async function bulkUploadEmployeeIdsAction(formData: FormData) {
   
   try {
     const textContent = await file.text();
-    // Normalize line endings and filter out empty lines
     const lines = textContent.split(/\r\n|\n|\r/).map(line => line.trim()).filter(line => line);
     
     let idsToUpload: string[] = [];
 
     if (lines.length > 0) {
-      // Normalize header: remove all spaces and convert to lowercase for matching
       const header = lines[0].toLowerCase().replace(/\s+/g, '');
-      // Check if header contains 'employeeid' (covers 'employee id', 'employee_id', 'employeeid')
       if (header.includes('employeeid')) {
-         idsToUpload = lines.slice(1).map(id => id.trim()).filter(id => id); // Trim and filter empty IDs after header
+         idsToUpload = lines.slice(1).map(id => id.trim()).filter(id => id);
       } else {
-        // If no header matches, assume all lines are IDs
-        idsToUpload = lines.map(id => id.trim()).filter(id => id); // Trim and filter empty IDs
+        idsToUpload = lines.map(id => id.trim()).filter(id => id);
       }
     }
     
@@ -187,7 +189,7 @@ export async function bulkUploadEmployeeIdsAction(formData: FormData) {
 }
 
 
-// Server actions for Printer Name management using Firebase
+// --- Printer Name Management Actions ---
 export async function addPrinterNameAction(name: string) {
   if (!name || name.trim() === "") {
     return { success: false, message: "Printer name cannot be empty." };
@@ -197,4 +199,56 @@ export async function addPrinterNameAction(name: string) {
 
 export async function removePrinterNameAction(id: string) {
   return dbRemovePrinterNameFS(id);
+}
+
+// --- Partner Management Actions ---
+const PartnerNameSchema = z.string().min(1, "Partner name cannot be empty.").max(100, "Partner name too long.");
+
+export async function addPartnerAction(name: string) {
+  const validation = PartnerNameSchema.safeParse(name);
+  if (!validation.success) {
+    return { success: false, message: validation.error.errors[0].message };
+  }
+  return dbAddPartnerFS(validation.data);
+}
+
+export async function updatePartnerAction(id: string, name: string) {
+  const validation = PartnerNameSchema.safeParse(name);
+  if (!validation.success) {
+    return { success: false, message: validation.error.errors[0].message };
+  }
+  return dbUpdatePartnerFS(id, validation.data);
+}
+
+export async function removePartnerAction(id: string) {
+  return dbRemovePartnerFS(id);
+}
+
+// --- Item Definition Management Actions ---
+const ItemDefinitionSchema = z.object({
+  name: z.string().min(1, "Item name is required.").max(100, "Item name too long."),
+  imageUrl: z.string().url("Image URL must be a valid URL.").min(1, "Image URL is required."),
+  dataAiHint: z.string().max(50, "AI hint too long.").optional(),
+});
+
+export async function addItemDefinitionAction(itemData: { name: string; imageUrl: string; dataAiHint?: string }) {
+  const validation = ItemDefinitionSchema.safeParse(itemData);
+  if (!validation.success) {
+    return { success: false, message: validation.error.flatten().fieldErrors.name?.[0] || validation.error.flatten().fieldErrors.imageUrl?.[0] || validation.error.flatten().fieldErrors.dataAiHint?.[0] || "Validation failed." };
+  }
+  return dbAddItemDefinitionFS(validation.data);
+}
+
+export async function updateItemDefinitionAction(id: string, itemData: { name?: string; imageUrl?: string; dataAiHint?: string }) {
+   // Validate only provided fields
+  const partialSchema = ItemDefinitionSchema.partial().refine(data => Object.keys(data).length > 0, {message: "At least one field must be provided for update."});
+  const validation = partialSchema.safeParse(itemData);
+  if (!validation.success) {
+     return { success: false, message: validation.error.flatten().fieldErrors.name?.[0] || validation.error.flatten().fieldErrors.imageUrl?.[0] || validation.error.flatten().fieldErrors.dataAiHint?.[0] || "Validation failed."};
+  }
+  return dbUpdateItemDefinitionFS(id, validation.data);
+}
+
+export async function removeItemDefinitionAction(id: string) {
+  return dbRemoveItemDefinitionFS(id);
 }

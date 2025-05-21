@@ -5,13 +5,15 @@ import React, { useState } from 'react';
 import { EmployeeIdManager } from '@/components/admin/employee-id-manager';
 import { PrinterManager } from '@/components/admin/printer-manager';
 import { BulkIdUploader } from '@/components/admin/bulk-id-uploader';
+import { ItemManager } from '@/components/admin/item-manager'; // New
+import { PartnerManager } from '@/components/admin/partner-manager'; // New
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/hooks/use-language';
-import { Users, Printer, UploadCloudIcon, ShieldAlert } from 'lucide-react';
+import { Users, Printer, UploadCloudIcon, ShieldAlert, ListChecks, Building } from 'lucide-react'; // Added ListChecks, Building
 import { useToast } from "@/hooks/use-toast";
 
 const ADMIN_USERNAME = "mswasth";
@@ -51,6 +53,7 @@ export default function AdminPage() {
                   value={username} 
                   onChange={(e) => setUsername(e.target.value)} 
                   required 
+                  className="text-base md:text-sm"
                 />
               </div>
               <div>
@@ -61,9 +64,10 @@ export default function AdminPage() {
                   value={password} 
                   onChange={(e) => setPassword(e.target.value)} 
                   required 
+                  className="text-base md:text-sm"
                 />
               </div>
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-base md:text-sm">
                 {t('loginButton')}
               </Button>
             </form>
@@ -81,20 +85,32 @@ export default function AdminPage() {
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">{t('adminPage')}</h1>
       
       <Tabs defaultValue="employee_ids" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 mb-6">
-          <TabsTrigger value="employee_ids" className="py-3 text-base">
-            <Users className="w-5 h-5 mr-2"/> {t('manageEmployeeIds')}
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-6">
+          <TabsTrigger value="employee_ids" className="py-3 text-sm sm:text-base">
+            <Users className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageEmployeeIds')}
           </TabsTrigger>
-          <TabsTrigger value="printer_names" className="py-3 text-base">
-            <Printer className="w-5 h-5 mr-2"/> {t('managePrinterNames')}
+          <TabsTrigger value="item_definitions" className="py-3 text-sm sm:text-base">
+            <ListChecks className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageItemDefinitions')}
           </TabsTrigger>
-          <TabsTrigger value="bulk_upload" className="py-3 text-base">
-            <UploadCloudIcon className="w-5 h-5 mr-2"/> {t('bulkUploadEmployeeIds')}
+          <TabsTrigger value="partners" className="py-3 text-sm sm:text-base">
+            <Building className="w-5 h-5 mr-1 sm:mr-2"/> {t('managePartners')}
+          </TabsTrigger>
+          <TabsTrigger value="printer_names" className="py-3 text-sm sm:text-base">
+            <Printer className="w-5 h-5 mr-1 sm:mr-2"/> {t('managePrinterNames')}
+          </TabsTrigger>
+          <TabsTrigger value="bulk_upload" className="py-3 text-sm sm:text-base">
+            <UploadCloudIcon className="w-5 h-5 mr-1 sm:mr-2"/> {t('bulkUploadEmployeeIds')}
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="employee_ids">
           <EmployeeIdManager />
+        </TabsContent>
+        <TabsContent value="item_definitions">
+          <ItemManager />
+        </TabsContent>
+        <TabsContent value="partners">
+          <PartnerManager />
         </TabsContent>
         <TabsContent value="printer_names">
           <PrinterManager />

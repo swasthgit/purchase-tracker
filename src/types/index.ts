@@ -5,8 +5,10 @@ export interface SelectOption {
 }
 
 export interface ItemDefinition {
-  value: string;
-  label: string;
+  id: string; // Firestore document ID
+  name: string; // This will be the label
+  value: string; // This can be the same as 'name' or a unique code, typically maps to 'id' for SelectOption
+  label: string; // Explicit label for SelectOption
   imageUrl: string;
   dataAiHint?: string;
 }
@@ -16,16 +18,17 @@ export interface PurchaseItem {
   clinicCode: string;
   quantity: number;
   price: number;
-  itemName: string;
+  itemName: string; // This will be the 'value' (or 'id') from ItemDefinition
   customItemName?: string; // For "Other" items
+  itemNameDisplay: string; // The final display name (either item.label or customItemName)
 }
 
 export interface AdminManagedItem {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
 }
 
 export interface Partner {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
 }

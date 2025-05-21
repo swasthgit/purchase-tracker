@@ -54,17 +54,17 @@ export function BulkIdUploader() {
     <Card className="shadow-md">
       <CardHeader>
         <CardTitle>{t('bulkUploadEmployeeIds')}</CardTitle>
-        <CardDescription>{t('uploadExcelFile')} ({t('employeeId')} {t('columnHeaderNote') || 'CSV/Excel with "employee id" column'})</CardDescription>
+        <CardDescription>{t('uploadExcelFile')} ({t('employeeId')} {t('columnHeaderNote')})</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label htmlFor="bulkIdFile" className="sr-only">{t('uploadExcelFile')}</Label>
+          <Label htmlFor="bulkIdFile-input" className="sr-only">{t('uploadExcelFile')}</Label>
           <div className="flex items-center justify-center w-full">
             <label htmlFor="bulkIdFile-input" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/70 border-primary/50 hover:border-primary">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-2">
                     <UploadCloud className="w-8 h-8 mb-2 text-primary" />
                     <p className="mb-1 text-sm text-foreground/80">
-                      {selectedFile ? selectedFile.name : <><span className="font-semibold">Click to upload</span> or drag and drop</>}
+                      {selectedFile ? selectedFile.name : <><span className="font-semibold">{t('clickToUpload') || 'Click to upload'}</span> {t('orDragAndDrop') || 'or drag and drop'}</>}
                     </p>
                     <p className="text-xs text-foreground/60">CSV, XLS, XLSX files</p>
                 </div>
@@ -81,7 +81,7 @@ export function BulkIdUploader() {
         </div>
         {selectedFile && (
           <div className="text-sm">
-            {t('selectedFile') || 'Selected File'}: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
+            {t('selectedFile')}: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)
           </div>
         )}
         <Button onClick={handleUpload} disabled={isPending || !selectedFile} className="w-full">
@@ -89,10 +89,16 @@ export function BulkIdUploader() {
           {isPending ? `${t('upload')}...` : t('upload')}
         </Button>
         <p className="text-xs text-muted-foreground">
-          {t('bulkUploadNote') || "Note: The file should have one column with the header 'employee id' (case-insensitive) or be a list of IDs. The system will attempt to parse it. Duplicate IDs in the system will be ignored."}
+          {t('bulkUploadNote')}
         </p>
       </CardContent>
     </Card>
   );
 }
 
+// Add these translations to your src/lib/translations.ts if they don't exist
+// 'clickToUpload': 'Click to upload',
+// 'orDragAndDrop': 'or drag and drop',
+// 'columnHeaderNote': 'CSV/Excel with "employee_id" or "employee id" column header',
+// 'bulkUploadNote': 'Note: The file should have one column with the header "employee_id" or "employee id" (case-insensitive) or be a list of IDs. Duplicate IDs in the system will be ignored.',
+// 'selectedFile': 'Selected File',
