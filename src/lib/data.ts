@@ -84,6 +84,8 @@ let partnerNames: Partner[] = [
   { id: 'P073', name: "North East Small Finance Bank - SHG" },
 ];
 
+export const OTHER_ITEM_VALUE = "other_specify_item";
+
 let itemNames: ItemDefinition[] = [
   { value: 'Cells', label: 'Cells', imageUrl: 'https://placehold.co/100x100.png?text=Cells', dataAiHint: "battery cells" },
   { value: 'Shelf', label: 'Shelf', imageUrl: 'https://placehold.co/100x100.png?text=Shelf', dataAiHint: "storage shelf" },
@@ -119,7 +121,7 @@ let itemNames: ItemDefinition[] = [
   { value: 'Nurses Check', label: 'Nurses Check', imageUrl: 'https://placehold.co/100x100.png?text=Nurse+Check', dataAiHint: "nurse patient" },
   { value: 'Repairing Charges', label: 'Repairing Charges', imageUrl: 'https://placehold.co/100x100.png?text=Repair', dataAiHint: "tools fixing" },
   { value: 'Transport Cost', label: 'Transport Cost', imageUrl: 'https://placehold.co/100x100.png?text=Transport', dataAiHint: "truck delivery" },
-  { value: 'Other', label: 'Other (Specify)', imageUrl: 'https://placehold.co/100x100.png?text=Other', dataAiHint: "question mark" },
+  { value: OTHER_ITEM_VALUE, label: 'Other (Specify)', imageUrl: 'https://placehold.co/100x100.png?text=Other', dataAiHint: "custom item" },
 ];
 
 

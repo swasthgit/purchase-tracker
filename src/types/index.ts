@@ -8,6 +8,7 @@ export interface ItemDefinition {
   value: string;
   label: string;
   imageUrl: string;
+  dataAiHint?: string;
 }
 
 export interface PurchaseItem {
@@ -16,6 +17,7 @@ export interface PurchaseItem {
   quantity: number;
   price: number;
   itemName: string;
+  customItemName?: string; // For "Other" items
 }
 
 export interface AdminManagedItem {

@@ -8,6 +8,7 @@ import {
   addPrinterName as dbAddPrinterName,
   removePrinterName as dbRemovePrinterName,
   bulkAddEmployeeIds as dbBulkAddEmployeeIds,
+  OTHER_ITEM_VALUE
 } from '@/lib/data';
 import type { PurchaseItem } from '@/types';
 
@@ -19,8 +20,17 @@ const PurchaseItemSchema = z.object({
   id: z.string(),
   clinicCode: z.string().min(1, "Clinic code is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
-  price: z.coerce.number().min(0, "Price cannot be negative"),
+  price: z.coerce.number().min(0.01, "Price must be greater than 0.01"),
   itemName: z.string().min(1, "Item name is required"),
+  customItemName: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.itemName === OTHER_ITEM_VALUE && (!data.customItemName || data.customItemName.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Custom item name is required when 'Other' is selected.",
+      path: ['customItemName'],
+    });
+  }
 });
 
 const PurchaseFormSchema = z.object({
@@ -41,13 +51,22 @@ const PurchaseFormSchema = z.object({
 export async function submitPurchase(prevState: any, formData: FormData) {
   try {
     const rawItems = formData.get('items') as string;
-    const items = JSON.parse(rawItems) as PurchaseItem[];
+    // The items from formData are already processed in purchase-form.tsx to include itemNameDisplay
+    // So we parse them as is.
+    const itemsForValidation = JSON.parse(rawItems).map((item: any) => ({
+        id: item.id,
+        clinicCode: item.clinicCode,
+        quantity: item.quantity,
+        price: item.price,
+        itemName: item.itemName, // original itemName for validation
+        customItemName: item.customItemName,
+    })) as PurchaseItem[];
     
     const validatedFields = PurchaseFormSchema.safeParse({
       userId: formData.get('userId'),
       partnerName: formData.get('partnerName'),
       userName: formData.get('userName'),
-      items: items,
+      items: itemsForValidation, // Use the specifically mapped items for validation
       uploadedFile: formData.get('uploadedFile') as File | undefined,
     });
 
@@ -63,12 +82,17 @@ export async function submitPurchase(prevState: any, formData: FormData) {
     const { userId, partnerName, userName, items: parsedItems, uploadedFile } = validatedFields.data;
 
     // Simulate saving data
-    console.log("Purchase Submitted:", { userId, partnerName, userName, items: parsedItems });
+    // For logging or actual DB saving, you might want the display name
+    const itemsToSave = parsedItems.map(item => {
+        const displayName = item.itemName === OTHER_ITEM_VALUE ? item.customItemName : item.itemName;
+        return { ...item, itemNameDisplay: displayName };
+    });
+
+    console.log("Purchase Submitted:", { userId, partnerName, userName, items: itemsToSave });
+
     if (uploadedFile) {
       console.log("Uploaded File:", uploadedFile.name, uploadedFile.type, uploadedFile.size);
-      // In a real app, you would save the file to a storage service (e.g., Firebase Storage, S3)
-      // const fileBuffer = await uploadedFile.arrayBuffer();
-      // Then save fileBuffer
+      // In a real app, you would save the file to a storage service
     }
 
     return { success: true, message: "dataSubmittedSuccess" };
@@ -111,32 +135,26 @@ export async function bulkUploadEmployeeIdsAction(formData: FormData) {
     return { success: false, message: 'No file uploaded.' };
   }
 
-  // Basic validation for file type (example: allow only CSV)
   if (file.type !== 'text/csv' && file.type !== 'application/vnd.ms-excel' && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
      return { success: false, message: 'Invalid file type. Please upload a CSV or Excel file.' };
   }
   
-  // In a real app, you would parse the Excel/CSV file here.
-  // For simplicity, we'll simulate reading lines from a CSV.
-  // This requires a library like 'papaparse' or 'xlsx' for robust parsing.
-  // Here, we'll just pretend it's a CSV and extract IDs.
-  // This is a placeholder for actual file processing logic.
   try {
     const textContent = await file.text();
-    const lines = textContent.split('\\n').map(line => line.trim()).filter(line => line !== '');
+    const lines = textContent.split(/\\r\\n|\\n|\\r/).map(line => line.trim()).filter(line => line !== ''); // Handles different line endings
     
-    // Assuming the first line is a header "employee id"
     let idsToUpload: string[] = [];
     if (lines.length > 0) {
-      const header = lines[0].toLowerCase();
-      if (header.includes('employee id') || header.includes('employeeid')) {
+      const header = lines[0].toLowerCase().replace(/\s+/g, ''); // Normalize header
+      if (header.includes('employeeid')) { // More robust check
          idsToUpload = lines.slice(1);
       } else {
-        // If no header or unknown header, assume all lines are IDs
         idsToUpload = lines;
       }
     }
     
+    idsToUpload = idsToUpload.filter(id => id); // Ensure no empty strings from parsing
+
     if (idsToUpload.length === 0) {
       return { success: false, message: 'No IDs found in the file or file format incorrect.' };
     }
