@@ -1,7 +1,7 @@
 // src/lib/data.ts
-import type { SelectOption, AdminManagedItem, Partner, ItemDefinition } from '@/types';
+import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData } from '@/types';
 import { db } from './firebase';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter } from 'firebase/firestore';
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
 
@@ -9,7 +9,7 @@ export const OTHER_ITEM_VALUE = "other_specify_item";
 export const getEmployeeIdsFS = async (): Promise<SelectOption[]> => {
   try {
     const employeeIdsCollection = collection(db, 'employee_ids');
-    const q = query(employeeIdsCollection); // Consider ordering if needed: query(employeeIdsCollection, orderBy("employeeId"));
+    const q = query(employeeIdsCollection, orderBy("employeeId"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ value: doc.data().employeeId as string, label: doc.data().employeeId as string }));
   } catch (error) {
@@ -37,13 +37,13 @@ export const addEmployeeIdFS = async (employeeIdValue: string): Promise<{success
 export const removeEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
   try {
     const employeeIdsCollection = collection(db, 'employee_ids');
+    // We need to find the document ID by the employeeIdValue field
     const q = query(employeeIdsCollection, where("employeeId", "==", employeeIdValue));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
-      // If searching by value, there might be multiple, but IDs should be unique
-      // For simplicity, assuming direct ID is passed or value is unique key for deletion
       return { success: false, message: 'ID not found' };
     }
+    // Assuming employeeIdValue is unique, there should be only one doc
     const docId = snapshot.docs[0].id;
     await deleteDoc(doc(db, 'employee_ids', docId));
     return { success: true };
@@ -58,7 +58,6 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
   const errorIds: string[] = [];
   const employeeIdsCollection = collection(db, 'employee_ids');
   
-  // Fetch all existing IDs first to optimize checks
   const existingSnapshot = await getDocs(employeeIdsCollection);
   const existingIds = new Set(existingSnapshot.docs.map(d => d.data().employeeId as string));
 
@@ -69,11 +68,11 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
     const trimmedId = id.trim();
     if (trimmedId && !existingIds.has(trimmedId) && !uniqueNewIds.has(trimmedId)) {
       uniqueNewIds.add(trimmedId);
-      const newDocRef = doc(collection(db, 'employee_ids')); // Auto-generate ID
+      const newDocRef = doc(collection(db, 'employee_ids')); 
       batch.set(newDocRef, { employeeId: trimmedId, createdAt: serverTimestamp() });
       addedCount++;
     } else if (trimmedId) {
-      errorIds.push(trimmedId); // It's either a duplicate in the file or already exists
+      errorIds.push(trimmedId); 
     }
   }
   try {
@@ -81,7 +80,7 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
     return { success: true, count: addedCount, errors: errorIds };
   } catch (error) {
      console.error("Error bulk adding employee IDs to Firestore:", error);
-     return { success: false, count: 0, errors: ids.filter(id => id.trim()) }; // All non-empty failed in case of batch error
+     return { success: false, count: 0, errors: ids.filter(id => id.trim()) };
   }
 };
 
@@ -90,7 +89,7 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
 export const getPrinterNamesFS = async (): Promise<AdminManagedItem[]> => {
   try {
     const printerNamesCollection = collection(db, 'printer_names');
-    const q = query(printerNamesCollection); // Consider ordering: query(printerNamesCollection, orderBy("name"));
+    const q = query(printerNamesCollection, orderBy("name"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnapshot => ({ id: docSnapshot.id, name: docSnapshot.data().name as string }));
   } catch (error) {
@@ -129,7 +128,7 @@ export const removePrinterNameFS = async (id: string): Promise<{success: boolean
 export const getPartnersFS = async (): Promise<Partner[]> => {
   try {
     const partnersCollection = collection(db, 'partners');
-    const q = query(partnersCollection); // Consider ordering: query(partnersCollection, orderBy("name"));
+    const q = query(partnersCollection, orderBy("name"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnapshot => ({ id: docSnapshot.id, name: docSnapshot.data().name as string }));
   } catch (error) {
@@ -156,7 +155,6 @@ export const addPartnerFS = async (name: string): Promise<{success: boolean, id?
 
 export const updatePartnerFS = async (id: string, newName: string): Promise<{success: boolean, message?: string}> => {
   try {
-    // Check if newName already exists for another partner
     const partnersCollection = collection(db, 'partners');
     const q = query(partnersCollection, where("name", "==", newName));
     const snapshot = await getDocs(q);
@@ -188,14 +186,14 @@ export const removePartnerFS = async (id: string): Promise<{success: boolean, me
 export const getItemDefinitionsFS = async (): Promise<ItemDefinition[]> => {
   try {
     const itemsCollection = collection(db, 'item_definitions');
-    const q = query(itemsCollection); // Consider ordering: query(itemsCollection, orderBy("name"));
+    const q = query(itemsCollection, orderBy("name"));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnapshot => {
       const data = docSnapshot.data();
       return {
         id: docSnapshot.id,
         name: data.name as string,
-        value: docSnapshot.id, // Use doc ID as the value for selects
+        value: docSnapshot.id, 
         label: data.name as string,
         imageUrl: data.imageUrl as string,
         dataAiHint: data.dataAiHint as string | undefined,
@@ -210,11 +208,10 @@ export const getItemDefinitionsFS = async (): Promise<ItemDefinition[]> => {
 export const addItemDefinitionFS = async (itemData: Omit<ItemDefinition, 'id' | 'value' | 'label'> & { name: string }): Promise<{success: boolean, id?: string, message?: string}> => {
   try {
     const itemsCollection = collection(db, 'item_definitions');
-    // Check if item name already exists (optional, based on requirements)
     const q = query(itemsCollection, where("name", "==", itemData.name));
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
-      return { success: false, message: 'nameExists' }; // Assuming item names should be unique
+      return { success: false, message: 'nameExists' }; 
     }
     const docRef = await addDoc(itemsCollection, { ...itemData, createdAt: serverTimestamp() });
     return { success: true, id: docRef.id };
@@ -261,16 +258,49 @@ export const getPartnerNames = async (): Promise<Partner[]> => {
 
 export const getItemNames = async (): Promise<ItemDefinition[]> => {
   const itemsFromDb = await getItemDefinitionsFS();
-  // Add the "Other (Specify)" option manually after fetching from DB
   return [
     ...itemsFromDb,
     { 
       id: OTHER_ITEM_VALUE, 
       name: 'Other (Specify)', 
       value: OTHER_ITEM_VALUE, 
-      label: 'Other (Specify)', // This label will be translated by `t()` in component
+      label: 'Other (Specify)', 
       imageUrl: 'https://placehold.co/100x100.png?text=Other', 
       dataAiHint: "custom item" 
     }
   ];
+};
+
+// --- Get Purchases by Date Range ---
+export const getPurchasesByDateRangeFS = async (startDate: Date, endDate: Date): Promise<PurchaseData[]> => {
+  try {
+    const purchasesCollection = collection(db, 'purchases');
+    // Adjust endDate to include the whole day
+    const endOfDayEndDate = new Date(endDate);
+    endOfDayEndDate.setHours(23, 59, 59, 999);
+
+    const q = query(
+      purchasesCollection,
+      where('createdAt', '>=', Timestamp.fromDate(startDate)),
+      where('createdAt', '<=', Timestamp.fromDate(endOfDayEndDate)),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        userId: data.userId,
+        partnerName: data.partnerName,
+        userName: data.userName,
+        items: data.items,
+        uploadedFiles: data.uploadedFiles || [],
+        createdAt: data.createdAt, // This will be a Firestore Timestamp
+        totalAmount: data.totalAmount,
+      } as PurchaseData;
+    });
+  } catch (error) {
+    console.error("Error fetching purchases by date range from Firestore:", error);
+    return [];
+  }
 };

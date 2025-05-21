@@ -32,3 +32,21 @@ export interface Partner {
   id: string; // Firestore document ID
   name: string;
 }
+
+export interface UploadedFileMeta {
+  name: string;
+  type: string;
+  url: string;
+  size: number;
+}
+
+export interface PurchaseData {
+  id?: string; // Firestore document ID, optional for new data
+  userId: string;
+  partnerName: string;
+  userName: string;
+  items: PurchaseItem[];
+  uploadedFiles?: UploadedFileMeta[]; // Array of uploaded file metadata
+  createdAt: any; // Firestore Timestamp or Date
+  totalAmount?: number; // Optional, can be calculated
+}

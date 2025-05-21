@@ -5,15 +5,16 @@ import React, { useState } from 'react';
 import { EmployeeIdManager } from '@/components/admin/employee-id-manager';
 import { PrinterManager } from '@/components/admin/printer-manager';
 import { BulkIdUploader } from '@/components/admin/bulk-id-uploader';
-import { ItemManager } from '@/components/admin/item-manager'; // New
-import { PartnerManager } from '@/components/admin/partner-manager'; // New
+import { ItemManager } from '@/components/admin/item-manager';
+import { PartnerManager } from '@/components/admin/partner-manager';
+import { PurchaseDataDownloader } from '@/components/admin/purchase-data-downloader'; // New
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/hooks/use-language';
-import { Users, Printer, UploadCloudIcon, ShieldAlert, ListChecks, Building } from 'lucide-react'; // Added ListChecks, Building
+import { Users, Printer, UploadCloudIcon, ShieldAlert, ListChecks, Building, FileDown } from 'lucide-react'; // Added FileDown
 import { useToast } from "@/hooks/use-toast";
 
 const ADMIN_USERNAME = "mswasth";
@@ -85,7 +86,7 @@ export default function AdminPage() {
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">{t('adminPage')}</h1>
       
       <Tabs defaultValue="employee_ids" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 mb-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 mb-6">
           <TabsTrigger value="employee_ids" className="py-3 text-sm sm:text-base">
             <Users className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageEmployeeIds')}
           </TabsTrigger>
@@ -100,6 +101,9 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="bulk_upload" className="py-3 text-sm sm:text-base">
             <UploadCloudIcon className="w-5 h-5 mr-1 sm:mr-2"/> {t('bulkUploadEmployeeIds')}
+          </TabsTrigger>
+          <TabsTrigger value="download_reports" className="py-3 text-sm sm:text-base">
+            <FileDown className="w-5 h-5 mr-1 sm:mr-2"/> {t('downloadReports')}
           </TabsTrigger>
         </TabsList>
         
@@ -117,6 +121,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="bulk_upload">
           <BulkIdUploader />
+        </TabsContent>
+        <TabsContent value="download_reports">
+          <PurchaseDataDownloader />
         </TabsContent>
       </Tabs>
     </div>

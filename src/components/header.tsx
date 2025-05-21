@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { PackagePlus } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { ThemeSwitcher } from '@/components/theme-switcher'; // New
 import { useLanguage } from '@/hooks/use-language';
 import { Button } from '@/components/ui/button';
 
@@ -19,15 +20,16 @@ export function Header() {
             {t('appName')}
           </span>
         </Link>
-        <nav className="flex flex-1 items-center space-x-4">
-          <Button variant="ghost" asChild>
+        <nav className="flex flex-1 items-center space-x-2 sm:space-x-4">
+          <Button variant="ghost" asChild className="text-xs sm:text-sm px-2 sm:px-3">
             <Link href="/">{t('home')}</Link>
           </Button>
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" asChild className="text-xs sm:text-sm px-2 sm:px-3">
             <Link href="/admin">{t('admin')}</Link>
           </Button>
         </nav>
         <div className="flex items-center space-x-2">
+          <ThemeSwitcher />
           <LanguageSwitcher />
         </div>
       </div>

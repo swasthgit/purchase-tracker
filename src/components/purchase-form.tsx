@@ -1,7 +1,7 @@
 // src/components/purchase-form.tsx
 "use client";
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useRef } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,9 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, PlusCircle, Copy, UploadCloud, Info } from 'lucide-react';
+import { Trash2, PlusCircle, Copy, UploadCloud, Info, XCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
-import type { SelectOption, PurchaseItem as PurchaseItemType, Partner, ItemDefinition } from '@/types';
+import type { SelectOption, PurchaseItem as PurchaseItemType, Partner, ItemDefinition, UploadedFileMeta } from '@/types';
 import { getEmployeeIdsFS, getPartnerNames, getItemNames, OTHER_ITEM_VALUE } from '@/lib/data';
 import { submitPurchase } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
@@ -22,17 +22,18 @@ import { BillPreview } from '@/components/bill-preview';
 import * as XLSX from 'xlsx';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+const MAX_TOTAL_FILES = 50;
+const MAX_FILE_SIZE_PER_FILE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_FILE_TYPES_PURCHASE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
 
 const PurchaseItemSchema = z.object({
   id: z.string(), 
   clinicCode: z.string().min(1, "Clinic code is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   price: z.coerce.number().min(0.01, "Price must be greater than 0.01"),
-  itemName: z.string().min(1, "Item name is required"), // This will be the ID from ItemDefinition or OTHER_ITEM_VALUE
+  itemName: z.string().min(1, "Item name is required"), 
   customItemName: z.string().optional(),
-  itemNameDisplay: z.string(), // To store the final name for display/excel
+  itemNameDisplay: z.string(), 
 }).superRefine((data, ctx) => {
   if (data.itemName === OTHER_ITEM_VALUE && (!data.customItemName || data.customItemName.trim() === '')) {
     ctx.addIssue({
@@ -43,24 +44,34 @@ const PurchaseItemSchema = z.object({
   }
 });
 
+const FileSchema = z
+  .custom<File>()
+  .refine((file) => file.size <= MAX_FILE_SIZE_PER_FILE, `Max file size is 10MB per file.`)
+  .refine(
+    (file) => ALLOWED_FILE_TYPES_PURCHASE.includes(file.type),
+    "Only JPG, PNG, GIF, WEBP, PDF files are allowed."
+  );
+
 const FormSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  partnerName: z.string().min(1, "Partner name is required"), // This will be the Partner's name
+  partnerName: z.string().min(1, "Partner name is required"),
   userName: z.string().min(1, "User name is required").max(100, "User name too long"),
   items: z.array(PurchaseItemSchema).min(1, "At least one item is required"),
-  uploadedFile: z
-    .custom<File | undefined>()
-    .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max file size is 5MB.`)
-    .refine(
-      (file) => !file || ALLOWED_FILE_TYPES.includes(file.type),
-      "Only .jpg, .jpeg, .png, .gif, .pdf, .doc, .docx files are allowed."
-    ).optional(),
+  uploadedFiles: z.array(FileSchema)
+    .max(MAX_TOTAL_FILES, `You can upload a maximum of ${MAX_TOTAL_FILES} files.`)
+    .optional()
+    .default([]),
 });
 
 export type PurchaseFormValues = z.infer<typeof FormSchema>;
 
+// Helper type for client-side file previews
+interface FileWithPreview extends File {
+  preview: string;
+}
+
 export function PurchaseForm() {
-  const { t, language } = useLanguage(); // Added language for "Other" option translation
+  const { t, language } = useLanguage();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
@@ -68,23 +79,25 @@ export function PurchaseForm() {
   const [partnerOptions, setPartnerOptions] = useState<Partner[]>([]);
   const [itemDefinitionOptions, setItemDefinitionOptions] = useState<ItemDefinition[]>([]);
   
-  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [filePreviews, setFilePreviews] = useState<FileWithPreview[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [itemImagePreviews, setItemImagePreviews] = useState<Record<string, string | null>>({});
   
   const [totalBill, setTotalBill] = useState(0);
   const [showBillPreviewDialog, setShowBillPreviewDialog] = useState(false);
-  const [submittedBillData, setSubmittedBillData] = useState<PurchaseFormValues | null>(null);
+  const [submittedBillData, setSubmittedBillData] = useState<PurchaseFormValues & { id?: string; uploadedFiles: UploadedFileMeta[]; totalAmount: number } | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
 
-  const { register, control, handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<PurchaseFormValues>({
+  const { register, control, handleSubmit, reset, formState: { errors }, setValue, watch, getValues } = useForm<PurchaseFormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       userId: '',
       partnerName: '',
       userName: '',
       items: [{ id: crypto.randomUUID(), clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '', itemNameDisplay: '' }],
-      uploadedFile: undefined,
+      uploadedFiles: [],
     },
   });
 
@@ -94,6 +107,7 @@ export function PurchaseForm() {
   });
 
   const watchedItems = watch('items');
+  const watchedUploadedFiles = watch('uploadedFiles'); // Watch for changes in uploadedFiles array
 
   useEffect(() => {
     const currentTotal = watchedItems.reduce((sum, item) => {
@@ -109,8 +123,8 @@ export function PurchaseForm() {
       setIsLoadingData(true);
       try {
         setEmployeeIdOptions(await getEmployeeIdsFS());
-        setPartnerOptions(await getPartnerNames()); // Fetches Partner[]
-        setItemDefinitionOptions(await getItemNames()); // Fetches ItemDefinition[]
+        setPartnerOptions(await getPartnerNames()); 
+        setItemDefinitionOptions(await getItemNames()); 
       } catch (error) {
         console.error("Error fetching initial data:", error);
         toast({ variant: "destructive", title: t('errorOccurred'), description: "Could not load required data."});
@@ -124,7 +138,7 @@ export function PurchaseForm() {
   useEffect(() => {
     const newPreviews: Record<string, string | null> = {};
     fields.forEach((field, index) => {
-        const currentItemValue = watch(`items.${index}.itemName`); // This is item ID or OTHER_ITEM_VALUE
+        const currentItemValue = watch(`items.${index}.itemName`);
         if (currentItemValue && currentItemValue !== OTHER_ITEM_VALUE) {
             const def = itemDefinitionOptions.find(i => i.id === currentItemValue);
             newPreviews[field.id] = def ? def.imageUrl : null;
@@ -138,10 +152,10 @@ export function PurchaseForm() {
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
       toast({ title: t('submittingPurchase') });
-      const formData = new FormData();
-      formData.append('userId', data.userId);
-      formData.append('partnerName', data.partnerName); // partnerName is already string
-      formData.append('userName', data.userName);
+      const formDataToSubmit = new FormData();
+      formDataToSubmit.append('userId', data.userId);
+      formDataToSubmit.append('partnerName', data.partnerName); 
+      formDataToSubmit.append('userName', data.userName);
       
       const itemsWithDisplayNames = data.items.map(item => ({
         ...item,
@@ -149,26 +163,25 @@ export function PurchaseForm() {
           ? item.customItemName || t('other') 
           : itemDefinitionOptions.find(def => def.id === item.itemName)?.name || item.itemName,
       }));
-      formData.append('items', JSON.stringify(itemsWithDisplayNames));
+      formDataToSubmit.append('items', JSON.stringify(itemsWithDisplayNames));
 
-      if (data.uploadedFile) {
-        formData.append('uploadedFile', data.uploadedFile);
-      }
+      // Append files
+      data.uploadedFiles?.forEach((file, index) => {
+        formDataToSubmit.append(`uploadedFiles[${index}]`, file);
+      });
 
-      const result = await submitPurchase(null, formData);
+      const result = await submitPurchase(null, formDataToSubmit);
       if (result.success && result.data) {
         toast({ title: t('operationSuccess'), description: t('billGeneratedSuccess')});
-        // Ensure submittedBillData has the items with correct itemNameDisplay
-        const processedDataForBill = {
-          ...result.data,
-          items: itemsWithDisplayNames
-        } as PurchaseFormValues;
-        setSubmittedBillData(processedDataForBill); 
+        setSubmittedBillData(result.data as PurchaseFormValues & { id?: string; uploadedFiles: UploadedFileMeta[]; totalAmount: number }); 
         setShowBillPreviewDialog(true);
         reset(); 
-        setFilePreview(null);
+        setFilePreviews([]);
         setItemImagePreviews({});
         setTotalBill(0);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ""; // Reset native file input
+        }
       } else {
         toast({ variant: "destructive", title: t('errorOccurred'), description: result.message || t('errorOccurred') });
         if (result.errors) {
@@ -188,35 +201,58 @@ export function PurchaseForm() {
     if (fields.length > 0) {
       const lastItem = fields[fields.length - 1];
       const newItemId = crypto.randomUUID();
-      append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay }); // itemNameDisplay is already set
+      append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay }); 
       const lastItemDef = itemDefinitionOptions.find(i => i.id === lastItem.itemName && i.id !== OTHER_ITEM_VALUE);
       setItemImagePreviews(prev => ({...prev, [newItemId]: lastItemDef ? lastItemDef.imageUrl : null}));
     }
   };
-
+  
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setValue('uploadedFile', file);
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setFilePreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setFilePreview(file.name); 
+    const currentFiles = getValues('uploadedFiles') || [];
+    const newFilesArray = Array.from(event.target.files || []);
+
+    if (currentFiles.length + newFilesArray.length > MAX_TOTAL_FILES) {
+      toast({ variant: "destructive", title: t('errorOccurred'), description: t('maxFiles')});
+      if (fileInputRef.current) fileInputRef.current.value = ""; // Clear the input
+      return;
+    }
+
+    const validatedNewFiles: File[] = [];
+    const newFilePreviews: FileWithPreview[] = [];
+
+    for (const file of newFilesArray) {
+      if (file.size > MAX_FILE_SIZE_PER_FILE) {
+        toast({ variant: "destructive", title: t('errorOccurred'), description: `${file.name}: Max file size is 10MB.` });
+        continue;
       }
-    } else {
-      setValue('uploadedFile', undefined);
-      setFilePreview(null);
+      if (!ALLOWED_FILE_TYPES_PURCHASE.includes(file.type)) {
+        toast({ variant: "destructive", title: t('errorOccurred'), description: `${file.name}: Invalid file type. Only Images & PDFs allowed.` });
+        continue;
+      }
+      validatedNewFiles.push(file);
+      newFilePreviews.push(Object.assign(file, { preview: URL.createObjectURL(file) }));
+    }
+    
+    setValue('uploadedFiles', [...currentFiles, ...validatedNewFiles]);
+    setFilePreviews(prev => [...prev, ...newFilePreviews]);
+
+    // Clear the native file input so the same file can be selected again if removed and re-added
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
-  
-  const currentFile = watch('uploadedFile');
 
+  const removeUploadedFile = (indexToRemove: number) => {
+    const currentFiles = getValues('uploadedFiles') || [];
+    const updatedFiles = currentFiles.filter((_, index) => index !== indexToRemove);
+    setValue('uploadedFiles', updatedFiles);
+
+    const updatedPreviews = filePreviews.filter((_, index) => index !== indexToRemove);
+    setFilePreviews(updatedPreviews);
+  };
+  
   const handleItemNameChange = (fieldId: string, selectedItemId: string, index: number) => {
-    setValue(`items.${index}.itemName`, selectedItemId); // selectedItemId is the ID of the item_definition or OTHER_ITEM_VALUE
+    setValue(`items.${index}.itemName`, selectedItemId); 
     if (selectedItemId !== OTHER_ITEM_VALUE) {
       setValue(`items.${index}.customItemName`, ''); 
       const selectedItemDefinition = itemDefinitionOptions.find(i => i.id === selectedItemId);
@@ -249,9 +285,9 @@ export function PurchaseForm() {
         [t('userId'), submittedBillData.userId],
         [t('partnerName'), submittedBillData.partnerName],
         [t('userName'), submittedBillData.userName],
-        [t('uploadFile'), submittedBillData.uploadedFile ? submittedBillData.uploadedFile.name : t('noFileUploaded')],
+        [t('uploadedFilesLabel'), submittedBillData.uploadedFiles.length > 0 ? submittedBillData.uploadedFiles.map(f => f.name).join(', ') : t('noFileUploaded')],
         [], 
-        [t('totalBill'), totalBill.toFixed(2)]
+        [t('totalBill'), submittedBillData.totalAmount.toFixed(2)]
       ];
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, "Bill Summary");
@@ -259,7 +295,7 @@ export function PurchaseForm() {
       const itemsHeader = [t('clinicCode'), t('itemName'), t('quantity'), t('pricePerUnit'), t('itemLineTotal')];
       const itemsData = submittedBillData.items.map(item => [
         item.clinicCode,
-        item.itemNameDisplay, // Use the pre-calculated itemNameDisplay
+        item.itemNameDisplay, 
         item.quantity,
         Number(item.price).toFixed(2),
         (Number(item.quantity) * Number(item.price)).toFixed(2)
@@ -275,12 +311,10 @@ export function PurchaseForm() {
     }
   };
 
-  // Translate "Other (Specify)" based on current language for the item dropdown
   const translatedItemDefinitions = itemDefinitionOptions.map(item => ({
     ...item,
     label: item.value === OTHER_ITEM_VALUE ? t('other') : item.label,
   }));
-
 
   return (
     <>
@@ -354,7 +388,7 @@ export function PurchaseForm() {
                 <Alert variant="default" className="mt-2 text-sm p-3">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    {t('noPartners')} {/* Create this translation */}
+                    {t('noPartners')}
                   </AlertDescription>
                 </Alert>
               )}
@@ -371,7 +405,7 @@ export function PurchaseForm() {
 
           <h3 className="text-xl font-semibold text-secondary">{t('itemsPurchased')}</h3>
           {fields.map((item, index) => {
-            const currentItemValueForLogic = watch(`items.${index}.itemName`); // This is the ID of the item
+            const currentItemValueForLogic = watch(`items.${index}.itemName`);
             return (
             <Card key={item.id} className="p-4 space-y-4 bg-muted/30">
                <CardHeader className="p-0 mb-2">
@@ -392,7 +426,7 @@ export function PurchaseForm() {
                         render={({ field }) => (
                           <Select 
                             onValueChange={(value) => handleItemNameChange(item.id, value, index)}
-                            value={field.value} // field.value should be item ID
+                            value={field.value} 
                             disabled={isLoadingData || translatedItemDefinitions.length === 0}
                           >
                             <SelectTrigger id={`items.${index}.itemName`} className="text-base md:text-sm">
@@ -403,19 +437,19 @@ export function PurchaseForm() {
                                 <SelectItem value="loading" disabled>{t('loading')}</SelectItem>
                               ) : translatedItemDefinitions.length > 0 ? (
                                 translatedItemDefinitions.map(def => (
-                                <SelectItem key={def.id} value={def.id}> {/* Use def.id as value */}
+                                <SelectItem key={def.id} value={def.id}>
                                   <div className="flex items-center">
                                     {def.id !== OTHER_ITEM_VALUE && def.imageUrl && (
                                       <Image 
                                         src={def.imageUrl} 
-                                        alt={def.name} // Use def.name (original name)
+                                        alt={def.name} 
                                         width={24} 
                                         height={24} 
                                         className="mr-2 rounded-sm object-cover" 
                                         data-ai-hint={def.dataAiHint || def.name.toLowerCase().replace(/\s+/g, '')} 
                                       />
                                     )}
-                                    {def.label} {/* Use def.label (potentially translated "Other") */}
+                                    {def.label}
                                   </div>
                                 </SelectItem>
                               ))) : (
@@ -499,27 +533,55 @@ export function PurchaseForm() {
           <Separator />
 
           <div>
-            <Label htmlFor="uploadedFile">{t('uploadFile')}</Label>
+            <Label htmlFor="uploadedFiles-input">{t('uploadFiles')}</Label>
             <div className="mt-2 flex items-center justify-center w-full">
-                <label htmlFor="uploadedFile-input" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/70 border-primary/50 hover:border-primary">
+                <label htmlFor="uploadedFiles-input" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/70 border-primary/50 hover:border-primary">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-2">
                         <UploadCloud className="w-8 h-8 mb-2 text-primary" />
-                        <p className="mb-1 text-sm text-foreground/80"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                        <p className="text-xs text-foreground/60">Images, PDF, DOC (MAX. 5MB)</p>
+                        <p className="mb-1 text-sm text-foreground/80"><span className="font-semibold">{t('clickToUpload') || 'Click to upload'}</span> {t('orDragAndDrop') || 'or drag and drop'}</p>
+                        <p className="text-xs text-foreground/60">{t('maxFiles')}</p>
                     </div>
-                    <Input id="uploadedFile-input" type="file" className="hidden" onChange={handleFileChange} accept={ALLOWED_FILE_TYPES.join(',')} />
+                    <Input 
+                        id="uploadedFiles-input" 
+                        type="file" 
+                        className="hidden" 
+                        multiple 
+                        onChange={handleFileChange} 
+                        accept={ALLOWED_FILE_TYPES_PURCHASE.join(',')}
+                        ref={fileInputRef}
+                    />
                 </label>
             </div>
-            {currentFile && (
-              <div className="mt-2 text-sm text-foreground/80">
-                {filePreview && filePreview.startsWith('data:image') ? (
-                    <Image src={filePreview} alt="File preview" width={128} height={128} className="max-h-32 rounded-md border object-contain mx-auto sm:mx-0" data-ai-hint="document preview"/>
-                ) : (
-                    <span>{filePreview || currentFile.name}</span>
-                )}
+            {filePreviews.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h4 className="text-sm font-medium">{t('selectedFiles')}:</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {filePreviews.map((file, index) => (
+                    <div key={index} className="relative group border rounded-md p-1">
+                      {file.type.startsWith('image/') ? (
+                        <Image src={file.preview} alt={file.name} width={80} height={80} className="w-full h-20 object-contain rounded" data-ai-hint="file preview" />
+                      ) : (
+                        <div className="w-full h-20 flex flex-col items-center justify-center bg-muted/30 rounded p-1 text-center">
+                          <FileIcon className="w-8 h-8 text-foreground/70" />
+                          <p className="text-xs truncate w-full mt-1">{file.name}</p>
+                        </div>
+                      )}
+                       <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeUploadedFile(index)}
+                          aria-label={t('removeFile')}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-            {errors.uploadedFile && <p className="text-sm text-destructive mt-1">{errors.uploadedFile.message}</p>}
+            {errors.uploadedFiles && <p className="text-sm text-destructive mt-1">{Array.isArray(errors.uploadedFiles) ? errors.uploadedFiles.map(e => e?.message).join(', ') : errors.uploadedFiles.message}</p>}
           </div>
 
           <Separator />
@@ -539,11 +601,8 @@ export function PurchaseForm() {
         isOpen={showBillPreviewDialog}
         onClose={() => {
           setShowBillPreviewDialog(false);
-          // Optionally clear submittedBillData if form reset is desired immediately after closing preview
-          // setSubmittedBillData(null); 
         }}
         billData={submittedBillData}
-        // itemDefinitions={itemDefinitionOptions} // No longer strictly needed if billData.items has itemNameDisplay
         t={t}
         onDownloadExcel={handleDownloadExcel}
       />
@@ -551,3 +610,11 @@ export function PurchaseForm() {
     </>
   );
 }
+
+// Minimalistic FileIcon for non-image previews
+const FileIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);

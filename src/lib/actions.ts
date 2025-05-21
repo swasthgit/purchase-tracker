@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore'; 
+import { collection, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where, Timestamp } from 'firebase/firestore'; 
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   OTHER_ITEM_VALUE,
@@ -18,12 +18,16 @@ import {
   addItemDefinitionFS as dbAddItemDefinitionFS,
   updateItemDefinitionFS as dbUpdateItemDefinitionFS,
   removeItemDefinitionFS as dbRemoveItemDefinitionFS,
+  getPurchasesByDateRangeFS,
 } from '@/lib/data';
-import type { PurchaseItem, ItemDefinition, Partner } from '@/types';
+import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData } from '@/types';
+import * as XLSX from 'xlsx';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+const MAX_TOTAL_FILES = 50;
+const MAX_FILE_SIZE_PER_FILE = 10 * 1024 * 1024; // 10MB per file
+const ALLOWED_FILE_TYPES_PURCHASE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+const ALLOWED_IMAGE_TYPES_ITEM_DEF = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 
 const PurchaseItemSchema = z.object({
@@ -44,18 +48,20 @@ const PurchaseItemSchema = z.object({
   }
 });
 
+const FileSchema = z
+  .custom<File>()
+  .refine((file) => file.size <= MAX_FILE_SIZE_PER_FILE, `Max file size is 10MB.`)
+  .refine(
+    (file) => ALLOWED_FILE_TYPES_PURCHASE.includes(file.type),
+    "Only JPG, JPEG, PNG, GIF, WEBP, PDF files are allowed."
+  );
+
 const PurchaseFormSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   partnerName: z.string().min(1, "Partner name is required"), 
   userName: z.string().min(1, "User name is required"),
   items: z.array(PurchaseItemSchema).min(1, "At least one item is required"),
-  uploadedFile: z
-    .custom<File | undefined>()
-    .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max file size is 5MB.`)
-    .refine(
-      (file) => !file || ALLOWED_FILE_TYPES.includes(file.type),
-      "Only .jpg, .jpeg, .png, .gif, .pdf, .doc, .docx files are allowed."
-    ).optional(),
+  uploadedFiles: z.array(FileSchema).max(MAX_TOTAL_FILES, `You can upload a maximum of ${MAX_TOTAL_FILES} files.`).optional(),
 });
 
 
@@ -71,13 +77,23 @@ export async function submitPurchase(prevState: any, formData: FormData) {
         customItemName: item.customItemName,
         itemNameDisplay: item.itemNameDisplay, 
     })) as PurchaseItem[];
+
+    const files: File[] = [];
+    for (let i = 0; i < MAX_TOTAL_FILES; i++) {
+      const file = formData.get(`uploadedFiles[${i}]`) as File | null;
+      if (file) {
+        files.push(file);
+      } else {
+        break; 
+      }
+    }
     
     const validatedFields = PurchaseFormSchema.safeParse({
       userId: formData.get('userId'),
       partnerName: formData.get('partnerName'),
       userName: formData.get('userName'),
       items: itemsForValidation,
-      uploadedFile: formData.get('uploadedFile') as File | undefined,
+      uploadedFiles: files.length > 0 ? files : undefined,
     });
 
     if (!validatedFields.success) {
@@ -89,25 +105,31 @@ export async function submitPurchase(prevState: any, formData: FormData) {
       };
     }
 
-    const { userId, partnerName, userName, items, uploadedFile } = validatedFields.data;
-    let fileUrl = '';
+    const { userId, partnerName, userName, items, uploadedFiles } = validatedFields.data;
+    const uploadedFileUrls: UploadedFileMeta[] = [];
 
-    if (uploadedFile) {
-      try {
-        const sRef = storageRef(storage, `purchase_uploads/${userId}/${Date.now()}_${uploadedFile.name}`);
-        const snapshot = await uploadBytes(sRef, uploadedFile);
-        fileUrl = await getDownloadURL(snapshot.ref);
-      } catch (uploadError) {
-        console.error("Error uploading file to Firebase Storage:", uploadError);
-        return { success: false, message: "File upload failed.", errors: { uploadedFile: "File upload failed."} };
+    if (uploadedFiles && uploadedFiles.length > 0) {
+      for (const file of uploadedFiles) {
+        try {
+          const sRef = storageRef(storage, `purchase_uploads/${userId}/${Date.now()}_${file.name}`);
+          const snapshot = await uploadBytes(sRef, file);
+          const downloadUrl = await getDownloadURL(snapshot.ref);
+          uploadedFileUrls.push({ name: file.name, type: file.type, url: downloadUrl, size: file.size });
+        } catch (uploadError) {
+          console.error("Error uploading file to Firebase Storage:", uploadError);
+          return { success: false, message: "File upload failed.", errors: { uploadedFiles: "File upload failed for " + file.name } };
+        }
       }
     }
 
-    const purchaseData = {
+    const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+
+    const purchaseData: PurchaseData = {
       userId,
       partnerName, 
       userName,
       items: items.map(item => ({ 
+        id: item.id,
         clinicCode: item.clinicCode,
         quantity: item.quantity,
         price: item.price,
@@ -115,13 +137,23 @@ export async function submitPurchase(prevState: any, formData: FormData) {
         customItemName: item.customItemName,
         itemNameDisplay: item.itemNameDisplay, 
       })),
-      fileUrl,
+      uploadedFiles: uploadedFileUrls,
       createdAt: serverTimestamp(),
+      totalAmount: totalAmount,
     };
 
-    await addDoc(collection(db, 'purchases'), purchaseData);
+    const docRef = await addDoc(collection(db, 'purchases'), purchaseData);
 
-    return { success: true, message: "billGeneratedSuccess", data: validatedFields.data };
+    // Prepare data for bill preview, including IDs and potentially full uploaded file objects if needed by client
+    const dataForBillPreview = {
+        ...validatedFields.data,
+        id: docRef.id, // Add the Firestore document ID
+        uploadedFiles: uploadedFileUrls, // Send metadata with URLs back
+        totalAmount: totalAmount,
+    };
+
+
+    return { success: true, message: "billGeneratedSuccess", data: dataForBillPreview };
   } catch (error) {
     console.error("Error submitting purchase:", error);
     return { success: false, message: "errorOccurred" };
@@ -279,7 +311,7 @@ export async function removeItemDefinitionAction(id: string) {
   return dbRemoveItemDefinitionFS(id);
 }
 
-// --- Item Image Upload Action ---
+// --- Item Image Upload Action (for Item Definitions) ---
 export async function uploadItemImageAction(formData: FormData): Promise<{success: boolean, url?: string, message?: string}> {
   const imageFile = formData.get('itemImage') as File | null;
 
@@ -287,11 +319,11 @@ export async function uploadItemImageAction(formData: FormData): Promise<{succes
     return { success: false, message: "No image file provided." };
   }
 
-  if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+  if (!ALLOWED_IMAGE_TYPES_ITEM_DEF.includes(imageFile.type)) {
     return { success: false, message: "Invalid file type. Please upload an image (JPEG, PNG, GIF, WEBP)." };
   }
-  if (imageFile.size > MAX_FILE_SIZE) { 
-    return { success: false, message: `File is too large. Max size is ${MAX_FILE_SIZE / (1024*1024)}MB.`};
+  if (imageFile.size > MAX_FILE_SIZE_PER_FILE) { 
+    return { success: false, message: `File is too large. Max size is ${MAX_FILE_SIZE_PER_FILE / (1024*1024)}MB.`};
   }
 
   try {
@@ -305,3 +337,99 @@ export async function uploadItemImageAction(formData: FormData): Promise<{succes
     return { success: false, message: errorMessage };
   }
 }
+
+// --- Admin Download Purchase Data by Time Frame ---
+const DownloadReportSchema = z.object({
+  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid start date" }),
+  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid end date" }),
+}).refine(data => new Date(data.startDate) <= new Date(data.endDate), {
+  message: "Start date cannot be after end date",
+  path: ["endDate"],
+});
+
+export async function downloadPurchasesByDateRangeAction(prevState: any, formData: FormData) {
+  const validatedFields = DownloadReportSchema.safeParse({
+    startDate: formData.get('startDate'),
+    endDate: formData.get('endDate'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      message: "Invalid date range.",
+      errors: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  const { startDate, endDate } = validatedFields.data;
+
+  try {
+    const purchases = await getPurchasesByDateRangeFS(new Date(startDate), new Date(endDate));
+
+    if (purchases.length === 0) {
+      return { success: false, message: "noDataFoundForDateRange" };
+    }
+
+    // Convert purchases to Excel format
+    const worksheetData = purchases.flatMap(purchase => 
+      purchase.items.map(item => ({
+        'Purchase ID': purchase.id,
+        'User ID': purchase.userId,
+        'Partner Name': purchase.partnerName,
+        'User Name': purchase.userName,
+        'Purchase Date': purchase.createdAt instanceof Timestamp ? purchase.createdAt.toDate().toLocaleDateString() : String(purchase.createdAt),
+        'Clinic Code': item.clinicCode,
+        'Item Name': item.itemNameDisplay,
+        'Quantity': item.quantity,
+        'Price Per Unit': item.price,
+        'Line Total': item.quantity * item.price,
+        'Uploaded Files Count': purchase.uploadedFiles?.length || 0,
+      }))
+    );
+    
+    const summaryRow = {
+        'Purchase ID': 'TOTAL',
+        'User ID': '',
+        'Partner Name': '',
+        'User Name': '',
+        'Purchase Date': '',
+        'Clinic Code': '',
+        'Item Name': '',
+        'Quantity': '',
+        'Price Per Unit': '',
+        'Line Total': purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0),
+        'Uploaded Files Count': '',
+    };
+    worksheetData.push(summaryRow);
+
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Purchases");
+    
+    // Server actions cannot directly trigger a file download in the browser.
+    // We return the data that the client can use to generate the file.
+    // For simplicity in this step, we'll return a success message.
+    // Actual file generation from this data would typically happen client-side
+    // or via a separate API route that streams the file.
+    // Here, we'll just log that data is ready.
+
+    // Convert workbook to a base64 string or buffer to send to client.
+    // For this example, we'll convert to buffer then base64.
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const base64 = Buffer.from(excelBuffer).toString('base64');
+
+
+    return { 
+        success: true, 
+        message: "reportGeneratedSuccess",
+        excelData: base64, // Send base64 encoded Excel data
+        fileName: `PurchaseReport_${startDate}_to_${endDate}.xlsx`
+    };
+
+  } catch (error) {
+    console.error("Error generating purchase report:", error);
+    return { success: false, message: "errorGeneratingReport" };
+  }
+}
+
