@@ -11,12 +11,12 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import type { PurchaseFormValues } from './purchase-form';
-import type { ItemDefinition } from '@/types';
-import { OTHER_ITEM_VALUE } from '@/lib/data';
-import { Printer } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import type { PurchaseFormValues } from "./purchase-form";
+import type { ItemDefinition } from "@/types";
+import { OTHER_ITEM_VALUE } from "@/lib/data";
+import { Printer } from "lucide-react";
 
 interface BillPreviewProps {
   isOpen: boolean;
