@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, PlusCircle, Copy, UploadCloud, Download, CheckCircle } from 'lucide-react';
+import { Trash2, PlusCircle, Copy, UploadCloud, Download, CheckCircle, Info } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { SelectOption, PurchaseItem as PurchaseItemType, Partner, ItemDefinition } from '@/types';
 import { getEmployeeIdsFS, getPartnerNames, getItemNames, OTHER_ITEM_VALUE } from '@/lib/data'; // getEmployeeIdsFS for Firebase
@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import Image from 'next/image';
 import { BillPreview } from '@/components/bill-preview'; 
 import * as XLSX from 'xlsx';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -72,6 +73,7 @@ export function PurchaseForm() {
   const [totalBill, setTotalBill] = useState(0);
   const [showBillPreviewDialog, setShowBillPreviewDialog] = useState(false);
   const [submittedBillData, setSubmittedBillData] = useState<PurchaseFormValues | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
 
   const { register, control, handleSubmit, reset, formState: { errors }, setValue, watch, getValues } = useForm<PurchaseFormValues>({
@@ -103,12 +105,20 @@ export function PurchaseForm() {
 
   useEffect(() => {
     async function fetchData() {
-      setEmployeeIdOptions(await getEmployeeIdsFS()); // Fetch from Firebase
-      setPartnerNames(await getPartnerNames());
-      setItemDefinitions(await getItemNames());
+      setIsLoadingData(true);
+      try {
+        setEmployeeIdOptions(await getEmployeeIdsFS());
+        setPartnerNames(await getPartnerNames());
+        setItemDefinitions(await getItemNames());
+      } catch (error) {
+        console.error("Error fetching initial data:", error);
+        toast({ variant: "destructive", title: t('errorOccurred'), description: "Could not load required data."});
+      } finally {
+        setIsLoadingData(false);
+      }
     }
     fetchData();
-  }, []);
+  }, [t, toast]);
   
   useEffect(() => {
     const newPreviews: Record<string, string | null> = {};
@@ -149,7 +159,7 @@ export function PurchaseForm() {
         toast({ title: t('operationSuccess'), description: t('billGeneratedSuccess')});
         setSubmittedBillData(result.data as PurchaseFormValues); 
         setShowBillPreviewDialog(true);
-        reset(); // Reset form after successful submission and data is set for preview
+        reset(); 
         setFilePreview(null);
         setItemImagePreviews({});
         setTotalBill(0);
@@ -172,7 +182,7 @@ export function PurchaseForm() {
     if (fields.length > 0) {
       const lastItem = fields[fields.length - 1];
       const newItemId = crypto.randomUUID();
-      append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay }); // copy itemNameDisplay too
+      append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay });
       const lastItemDef = itemDefinitions.find(i => i.value === lastItem.itemName && i.value !== OTHER_ITEM_VALUE);
       setItemImagePreviews(prev => ({...prev, [newItemId]: lastItemDef ? lastItemDef.imageUrl : null}));
     }
@@ -229,19 +239,17 @@ export function PurchaseForm() {
     try {
       const wb = XLSX.utils.book_new();
       
-      // Sheet 1: Bill Summary
       const summaryData = [
         [t('userId'), submittedBillData.userId],
         [t('partnerName'), submittedBillData.partnerName],
         [t('userName'), submittedBillData.userName],
         [t('uploadFile'), submittedBillData.uploadedFile ? submittedBillData.uploadedFile.name : t('noFileUploaded') || 'No File Uploaded'],
-        [], // Empty row for spacing
+        [], 
         [t('totalBill'), totalBill.toFixed(2)]
       ];
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, "Bill Summary");
 
-      // Sheet 2: Item Details
       const itemsHeader = [t('clinicCode'), t('itemName'), t('quantity'), t('pricePerUnit'), t('itemLineTotal')];
       const itemsData = submittedBillData.items.map(item => [
         item.clinicCode,
@@ -278,18 +286,32 @@ export function PurchaseForm() {
                 name="userId"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingData || employeeIdOptions.length === 0}>
                     <SelectTrigger id="userId">
                       <SelectValue placeholder={t('selectUserId')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {employeeIdOptions.map(emp => (
-                        <SelectItem key={emp.value} value={emp.value}>{emp.label}</SelectItem>
-                      ))}
+                      {isLoadingData ? (
+                        <SelectItem value="loading" disabled>{t('loading') || 'Loading...'}</SelectItem>
+                      ) : employeeIdOptions.length > 0 ? (
+                        employeeIdOptions.map(emp => (
+                          <SelectItem key={emp.value} value={emp.value}>{emp.label}</SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no_ids" disabled>{t('noEmployeeIds')}</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 )}
               />
+              {!isLoadingData && employeeIdOptions.length === 0 && (
+                <Alert variant="default" className="mt-2 text-sm p-3">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    {t('noUserIdsAvailableAdminPrompt')}
+                  </AlertDescription>
+                </Alert>
+              )}
               {errors.userId && <p className="text-sm text-destructive mt-1">{errors.userId.message}</p>}
             </div>
             <div>
@@ -298,12 +320,14 @@ export function PurchaseForm() {
                 name="partnerName"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingData}>
                     <SelectTrigger id="partnerName">
                       <SelectValue placeholder={t('selectPartnerName')} />
                     </SelectTrigger>
                     <SelectContent>
-                      {partnerNames.map(partner => (
+                       {isLoadingData ? (
+                        <SelectItem value="loading" disabled>{t('loading') || 'Loading...'}</SelectItem>
+                      ) : partnerNames.map(partner => (
                         <SelectItem key={partner.id} value={partner.name}>{partner.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -345,12 +369,15 @@ export function PurchaseForm() {
                           <Select 
                             onValueChange={(value) => handleItemNameChange(item.id, value, index)}
                             value={field.value}
+                            disabled={isLoadingData}
                           >
                             <SelectTrigger id={`items.${index}.itemName`}>
                               <SelectValue placeholder={t('selectItemName')} />
                             </SelectTrigger>
                             <SelectContent>
-                              {itemDefinitions.map(def => (
+                              {isLoadingData ? (
+                                <SelectItem value="loading" disabled>{t('loading') || 'Loading...'}</SelectItem>
+                              ) : itemDefinitions.map(def => (
                                 <SelectItem key={def.value} value={def.value}>
                                   <div className="flex items-center">
                                     {def.value !== OTHER_ITEM_VALUE && (
@@ -418,7 +445,7 @@ export function PurchaseForm() {
               </CardFooter>
             </Card>
           )})}
-           {errors.items && typeof errors.items === 'object' && !Array.isArray(errors.items) && ( // For general array errors like min length
+           {errors.items && typeof errors.items === 'object' && !Array.isArray(errors.items) && ( 
             <p className="text-sm text-destructive mt-1">{errors.items.message || errors.items.root?.message}</p>
           )}
 
@@ -464,7 +491,7 @@ export function PurchaseForm() {
             <h3 className="text-xl font-semibold">{t('totalBill')}: <span className="text-primary">{totalBill.toFixed(2)}</span></h3>
           </div>
 
-          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isPending}>
+          <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isPending || isLoadingData}>
             {isPending ? `${t('submittingPurchase')}...` : t('submit')}
           </Button>
 

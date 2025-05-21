@@ -29,9 +29,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     uploadFile: 'Upload File (Image/Document)',
     submit: 'Submit',
     totalBill: 'Total Bill',
-    viewBill: 'View Bill', // Kept for reference, might be replaced by new buttons
-    printBill: 'Print Bill', // Will be part of new flow
-    closeBill: 'Close', // Will be part of new flow
+    viewBill: 'View Bill', 
+    printBill: 'Print Bill', 
+    closeBill: 'Close', 
     finishBill: 'Finish',
     downloadExcel: 'Download Excel',
     billDetails: 'Purchase Bill Details',
@@ -60,6 +60,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     confirm: 'Confirm',
     appDescription: 'Track your purchases efficiently.',
     noEmployeeIds: 'No employee IDs found.',
+    noUserIdsAvailableAdminPrompt: 'No User IDs available. Please add User IDs in the Admin panel to enable selection.',
     noPrinterNames: 'No printer names found.',
     idExists: 'This ID already exists.',
     nameExists: 'This name already exists.',
@@ -79,6 +80,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     columnHeaderNote: 'CSV/Excel with "employee_id" or "employee id" column header',
     bulkUploadNote: 'Note: The file should have one column with the header "employee_id" or "employee id" (case-insensitive) or be a list of IDs. Duplicate IDs in the system will be ignored.',
     selectedFile: 'Selected File',
+    noFileUploaded: 'No file uploaded',
+    loading: 'Loading...',
+    other: 'Other',
   },
   hi: {
     appName: 'खरीद ट्रैकर',
@@ -138,6 +142,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     confirm: 'पुष्टि करें',
     appDescription: 'अपनी खरीदारियों को कुशलतापूर्वक ट्रैक करें।',
     noEmployeeIds: 'कोई कर्मचारी आईडी नहीं मिला।',
+    noUserIdsAvailableAdminPrompt: 'कोई उपयोगकर्ता आईडी उपलब्ध नहीं है। कृपया चयन सक्षम करने के लिए एडमिन पैनल में उपयोगकर्ता आईडी जोड़ें।',
     noPrinterNames: 'कोई प्रिंटर नाम नहीं मिला।',
     idExists: 'यह आईडी पहले से मौजूद है।',
     nameExists: 'यह नाम पहले से मौजूद है।',
@@ -157,5 +162,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     columnHeaderNote: 'CSV/Excel जिसमें "employee_id" या "employee id" कॉलम हेडर हो',
     bulkUploadNote: 'नोट: फ़ाइल में "employee_id" या "employee id" (केस-असंवेदनशील) हेडर वाला एक कॉलम होना चाहिए या आईडी की सूची होनी चाहिए। सिस्टम में डुप्लिकेट आईडी को अनदेखा कर दिया जाएगा।',
     selectedFile: 'चयनित फ़ाइल',
+    noFileUploaded: 'कोई फ़ाइल अपलोड नहीं की गई',
+    loading: 'लोड हो रहा है...',
+    other: 'अन्य',
   },
 };
