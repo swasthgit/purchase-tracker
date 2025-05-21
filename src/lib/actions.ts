@@ -3,8 +3,8 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore'; // Removed unused getDocs, query, where, writeBatch, deleteDoc
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore'; 
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   OTHER_ITEM_VALUE,
   addEmployeeIdFS as dbAddEmployeeIdFS,
@@ -23,6 +23,7 @@ import type { PurchaseItem, ItemDefinition, Partner } from '@/types';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 
 const PurchaseItemSchema = z.object({
@@ -30,9 +31,9 @@ const PurchaseItemSchema = z.object({
   clinicCode: z.string().min(1, "Clinic code is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   price: z.coerce.number().min(0.01, "Price must be greater than 0.01"),
-  itemName: z.string().min(1, "Item name is required"), // This will be the ID of the item_definition or OTHER_ITEM_VALUE
+  itemName: z.string().min(1, "Item name is required"), 
   customItemName: z.string().optional(),
-  itemNameDisplay: z.string(), // Added for storing the display name
+  itemNameDisplay: z.string(), 
 }).superRefine((data, ctx) => {
   if (data.itemName === OTHER_ITEM_VALUE && (!data.customItemName || data.customItemName.trim() === '')) {
     ctx.addIssue({
@@ -45,7 +46,7 @@ const PurchaseItemSchema = z.object({
 
 const PurchaseFormSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  partnerName: z.string().min(1, "Partner name is required"), // This will be the name of the partner
+  partnerName: z.string().min(1, "Partner name is required"), 
   userName: z.string().min(1, "User name is required"),
   items: z.array(PurchaseItemSchema).min(1, "At least one item is required"),
   uploadedFile: z
@@ -93,8 +94,8 @@ export async function submitPurchase(prevState: any, formData: FormData) {
 
     if (uploadedFile) {
       try {
-        const storageRef = ref(storage, `purchase_uploads/${userId}/${Date.now()}_${uploadedFile.name}`);
-        const snapshot = await uploadBytes(storageRef, uploadedFile);
+        const sRef = storageRef(storage, `purchase_uploads/${userId}/${Date.now()}_${uploadedFile.name}`);
+        const snapshot = await uploadBytes(sRef, uploadedFile);
         fileUrl = await getDownloadURL(snapshot.ref);
       } catch (uploadError) {
         console.error("Error uploading file to Firebase Storage:", uploadError);
@@ -104,7 +105,7 @@ export async function submitPurchase(prevState: any, formData: FormData) {
 
     const purchaseData = {
       userId,
-      partnerName, // Storing partner name directly
+      partnerName, 
       userName,
       items: items.map(item => ({ 
         clinicCode: item.clinicCode,
@@ -234,21 +235,73 @@ const ItemDefinitionSchema = z.object({
 export async function addItemDefinitionAction(itemData: { name: string; imageUrl: string; dataAiHint?: string }) {
   const validation = ItemDefinitionSchema.safeParse(itemData);
   if (!validation.success) {
-    return { success: false, message: validation.error.flatten().fieldErrors.name?.[0] || validation.error.flatten().fieldErrors.imageUrl?.[0] || validation.error.flatten().fieldErrors.dataAiHint?.[0] || "Validation failed." };
+    const fieldErrors = validation.error.flatten().fieldErrors;
+    const message = fieldErrors.name?.[0] || fieldErrors.imageUrl?.[0] || fieldErrors.dataAiHint?.[0] || "Validation failed.";
+    return { success: false, message };
   }
   return dbAddItemDefinitionFS(validation.data);
 }
 
 export async function updateItemDefinitionAction(id: string, itemData: { name?: string; imageUrl?: string; dataAiHint?: string }) {
-   // Validate only provided fields
   const partialSchema = ItemDefinitionSchema.partial().refine(data => Object.keys(data).length > 0, {message: "At least one field must be provided for update."});
   const validation = partialSchema.safeParse(itemData);
   if (!validation.success) {
-     return { success: false, message: validation.error.flatten().fieldErrors.name?.[0] || validation.error.flatten().fieldErrors.imageUrl?.[0] || validation.error.flatten().fieldErrors.dataAiHint?.[0] || "Validation failed."};
+     const fieldErrors = validation.error.flatten().fieldErrors;
+     const message = fieldErrors.name?.[0] || fieldErrors.imageUrl?.[0] || fieldErrors.dataAiHint?.[0] || "Validation failed.";
+     return { success: false, message };
   }
-  return dbUpdateItemDefinitionFS(id, validation.data);
+  // Ensure that if name is being updated, it's not empty or just whitespace
+  if (itemData.name !== undefined && itemData.name.trim() === "") {
+    return { success: false, message: "Item name cannot be empty." };
+  }
+  // Ensure that if imageUrl is being updated, it's not empty or just whitespace and is a valid URL
+  if (itemData.imageUrl !== undefined) {
+    if (itemData.imageUrl.trim() === "") {
+      return { success: false, message: "Image URL cannot be empty." };
+    }
+    const urlValidation = z.string().url().safeParse(itemData.imageUrl);
+    if (!urlValidation.success) {
+      return { success: false, message: "Invalid Image URL format."};
+    }
+  }
+
+  // Prepare data for Firestore, ensuring only defined fields are passed and names are trimmed
+  const updatePayload: any = {};
+  if (itemData.name !== undefined) updatePayload.name = itemData.name.trim();
+  if (itemData.imageUrl !== undefined) updatePayload.imageUrl = itemData.imageUrl.trim();
+  if (itemData.dataAiHint !== undefined) updatePayload.dataAiHint = itemData.dataAiHint.trim();
+
+
+  return dbUpdateItemDefinitionFS(id, updatePayload);
 }
 
 export async function removeItemDefinitionAction(id: string) {
   return dbRemoveItemDefinitionFS(id);
+}
+
+// --- Item Image Upload Action ---
+export async function uploadItemImageAction(formData: FormData): Promise<{success: boolean, url?: string, message?: string}> {
+  const imageFile = formData.get('itemImage') as File | null;
+
+  if (!imageFile) {
+    return { success: false, message: "No image file provided." };
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+    return { success: false, message: "Invalid file type. Please upload an image (JPEG, PNG, GIF, WEBP)." };
+  }
+  if (imageFile.size > MAX_FILE_SIZE) { 
+    return { success: false, message: `File is too large. Max size is ${MAX_FILE_SIZE / (1024*1024)}MB.`};
+  }
+
+  try {
+    const sRef = storageRef(storage, `item_definition_images/${Date.now()}_${imageFile.name}`);
+    const snapshot = await uploadBytes(sRef, imageFile);
+    const downloadUrl = await getDownloadURL(snapshot.ref);
+    return { success: true, url: downloadUrl };
+  } catch (error) {
+    console.error("Error uploading item image to Firebase Storage:", error);
+    const errorMessage = error instanceof Error ? error.message : "Firebase Storage upload failed.";
+    return { success: false, message: errorMessage };
+  }
 }

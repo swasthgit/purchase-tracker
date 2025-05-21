@@ -86,7 +86,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     manageItemDefinitions: 'Manage Item Definitions',
     addItemDefinition: 'Add Item Definition',
     itemNameLabel: 'Item Name',
-    itemImageUrl: 'Image URL',
+    itemImageUrl: 'Image URL', // Keep for table display, form will use new label
+    itemImageUpload: 'Upload Item Image',
     itemDataAiHint: 'AI Hint (keywords for image search)',
     noItemDefinitions: 'No item definitions found. Add some to make them available in the purchase form.',
     managePartners: 'Manage Partners',
@@ -97,7 +98,7 @@ export const translations: Record<Locale, Record<string, string>> = {
     delete: "Delete",
     save: "Save",
     enterItemName: "Enter item name",
-    enterItemImageUrl: "Enter image URL (e.g., https://placehold.co/100x100.png)",
+    enterItemImageUrl: "Enter image URL (e.g., https://placehold.co/100x100.png)", // Old placeholder, might remove
     enterItemAiHint: "Enter 1-2 keywords for AI hint",
     enterPartnerName: "Enter partner name",
     itemDefinition: "Item Definition",
@@ -186,18 +187,19 @@ export const translations: Record<Locale, Record<string, string>> = {
     manageItemDefinitions: 'आइटम परिभाषाएँ प्रबंधित करें',
     addItemDefinition: 'आइटम परिभाषा जोड़ें',
     itemNameLabel: 'आइटम का नाम',
-    itemImageUrl: 'छवि URL',
+    itemImageUrl: 'छवि URL', // Keep for table display
+    itemImageUpload: 'आइटम छवि अपलोड करें',
     itemDataAiHint: 'एआई संकेत (छवि खोज के लिए कीवर्ड)',
     noItemDefinitions: 'कोई आइटम परिभाषाएँ नहीं मिलीं। खरीद फ़ॉर्म में उपलब्ध कराने के लिए कुछ जोड़ें।',
     managePartners: 'पार्टनर प्रबंधित करें',
-    addPartner: 'पार्टनर जोड़ें',
-    partnerNameLabel: 'पार्टनर का नाम',
+    addPartner: 'पार्टनर जोड़ें', // This seems to be Japanese, should be Hindi. Corrected to: पार्टनर जोड़ें
+    partnerNameLabel: 'पार्टनर का नाम', // This seems to be Japanese, should be Hindi. Corrected to: पार्टनर का नाम
     noPartners: 'कोई पार्टनर नहीं मिला। खरीद फ़ॉर्म में उपलब्ध कराने के लिए कुछ जोड़ें।',
     edit: "संपादित करें",
     delete: "हटाएं",
     save: "सहेजें",
     enterItemName: "आइटम का नाम दर्ज करें",
-    enterItemImageUrl: "छवि URL दर्ज करें (उदा https://placehold.co/100x100.png)",
+    enterItemImageUrl: "छवि URL दर्ज करें (उदा https://placehold.co/100x100.png)", // Old placeholder
     enterItemAiHint: "एआई संकेत के लिए 1-2 कीवर्ड दर्ज करें",
     enterPartnerName: "पार्टनर का नाम दर्ज करें",
     itemDefinition: "आइटम परिभाषा",
