@@ -22,7 +22,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  // AlertDialogTrigger, // No longer needed here for the button in the loop
 } from "@/components/ui/alert-dialog";
 
 export function PrinterManager() {
@@ -109,11 +109,9 @@ export function PrinterManager() {
                 <TableRow key={printer.id}>
                   <TableCell>{printer.name}</TableCell>
                   <TableCell className="text-right">
-                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" onClick={() => openConfirmationDialog(printer)} disabled={isPending}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
+                    <Button variant="destructive" size="sm" onClick={() => openConfirmationDialog(printer)} disabled={isPending}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               )) : (

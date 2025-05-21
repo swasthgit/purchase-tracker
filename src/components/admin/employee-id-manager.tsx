@@ -22,7 +22,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  // AlertDialogTrigger, // No longer needed here for the button in the loop
 } from "@/components/ui/alert-dialog";
 
 export function EmployeeIdManager() {
@@ -103,11 +103,9 @@ export function EmployeeIdManager() {
                 <TableRow key={emp.value}>
                   <TableCell>{emp.label}</TableCell>
                   <TableCell className="text-right">
-                    <AlertDialogTrigger asChild>
-                       <Button variant="destructive" size="sm" onClick={() => setItemToRemove(emp.value)} disabled={isPending}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
+                    <Button variant="destructive" size="sm" onClick={() => setItemToRemove(emp.value)} disabled={isPending}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               )) : (
