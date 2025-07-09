@@ -1,6 +1,6 @@
 // src/lib/data.ts
 import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData } from '@/types';
-import { db } from './firebase';
+import { db } from './firebase'; import { QuerySnapshot, Query } from 'firebase/firestore';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter } from 'firebase/firestore';
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
@@ -20,9 +20,15 @@ export const getEmployeeIdsFS = async (): Promise<SelectOption[]> => {
 
 export const addEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
   try {
+    // Clean the input string
+    const cleanedEmployeeId = employeeIdValue
+ .trim() // Remove leading/trailing whitespace
+ .replace(/[^\x20-\x7E]/g, ''); // Remove non-printable ASCII characters
+
+ if (!cleanedEmployeeId) return { success: false, message: 'emptyId' }; // Prevent adding empty strings
+
     const employeeIdsCollection = collection(db, 'employee_ids');
-    const q = query(employeeIdsCollection, where("employeeId", "==", employeeIdValue));
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(query(employeeIdsCollection, where("employeeId", "==", cleanedEmployeeId)));
     if (!snapshot.empty) {
       return { success: false, message: 'idExists' };
     }
@@ -57,15 +63,23 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
   let addedCount = 0;
   const errorIds: string[] = [];
   const employeeIdsCollection = collection(db, 'employee_ids');
-  
-  const existingSnapshot = await getDocs(employeeIdsCollection);
-  const existingIds = new Set(existingSnapshot.docs.map(d => d.data().employeeId as string));
+
+  // Fetch existing IDs in batches to handle large collections efficiently
+  const existingIds = new Set<string>();
+  let lastDoc = null;
+  while (true) {
+    const batchQuery = lastDoc ? query(employeeIdsCollection, orderBy("employeeId"), startAfter(lastDoc), limit(1000)) : query(employeeIdsCollection, orderBy("employeeId"), limit(1000));
+    const snapshot: QuerySnapshot = await getDocs(batchQuery as Query);
+    if (snapshot.empty) break;
+    snapshot.docs.forEach(doc => existingIds.add(doc.data().employeeId as string)); // Explicitly cast
+    lastDoc = snapshot.docs[snapshot.docs.length - 1];
+  }
 
   const batch = writeBatch(db);
   const uniqueNewIds = new Set<string>();
 
   for (const id of ids) {
-    const trimmedId = id.trim();
+    const trimmedId = id.trim().replace(/[^\x20-\x7E]/g, ''); // Clean the input
     if (trimmedId && !existingIds.has(trimmedId) && !uniqueNewIds.has(trimmedId)) {
       uniqueNewIds.add(trimmedId);
       const newDocRef = doc(collection(db, 'employee_ids')); 

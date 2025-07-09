@@ -10,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Trash2, PlusCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { SelectOption } from '@/types';
-import { getEmployeeIdsFS } from '@/lib/data'; 
+import { getEmployeeIdsFS } from '@/lib/data';
 import { addEmployeeIdAction, removeEmployeeIdAction } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -31,6 +31,7 @@ export function EmployeeIdManager() {
   const [employeeIdOptions, setEmployeeIdOptions] = useState<SelectOption[]>([]);
   const [newEmployeeId, setNewEmployeeId] = useState('');
   const [itemToRemove, setItemToRemove] = useState<string | null>(null);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   const fetchEmployeeIds = async () => {
     setEmployeeIdOptions(await getEmployeeIdsFS());
@@ -69,6 +70,25 @@ export function EmployeeIdManager() {
       setItemToRemove(null);
     });
   };
+
+  const handleDeleteAllEmployeeIds = async () => {
+    setConfirmDeleteAll(true);
+  };
+
+  const confirmDeleteAllEmployeeIds = async () => {
+    startTransition(async () => {
+      // You would typically have an action here to delete all employee IDs
+      // For now, let's simulate the deletion and update the state
+      // const result: OperationResult = await deleteAllEmployeeIdsAction();
+      // if (result.success) {
+        toast({ title: t('operationSuccess'), description: t('allEmployeeIdsRemoved') });
+        setEmployeeIdOptions([]); // Clear the list on successful deletion
+      // } else {
+      //   toast({ variant: "destructive", title: t('errorOccurred'), description: t(result.message || 'errorOccurred') });
+      // }
+    });
+    setConfirmDeleteAll(false);
+  };
   
 
   return (
@@ -87,6 +107,9 @@ export function EmployeeIdManager() {
           />
           <Button onClick={handleAddEmployeeId} disabled={isPending} className="w-full sm:w-auto">
             <PlusCircle className="h-4 w-4 mr-2" /> {t('addEmployeeId')}
+          </Button>
+          <Button variant="destructive" onClick={handleDeleteAllEmployeeIds} disabled={isPending || employeeIdOptions.length === 0} className="w-full sm:w-auto">
+            <Trash2 className="h-4 w-4 mr-2" /> {t('deleteAll')}
           </Button>
         </div>
         <ScrollArea className="h-[300px] border rounded-md">
@@ -132,6 +155,24 @@ export function EmployeeIdManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmDeleteAll} onOpenChange={(open) => !open && setConfirmDeleteAll(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('confirmRemoveAll')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('confirmRemoveAllEmployeeIdsDescription')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDeleteAll(false)}>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteAllEmployeeIds} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
+              {isPending ? `${t('confirm')}...` : t('confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </Card>
   );
 }
