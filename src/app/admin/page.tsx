@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/hooks/use-language';
-import { Users, Printer, UploadCloudIcon, ShieldAlert, ListChecks, Building, FileDown, BarChart2, Download } from 'lucide-react';
+import { Users, Printer, UploadCloud, ShieldAlert, ListChecks, Building, FileDown, BarChart2, Download } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getPurchasesByDateRangeFS, PurchaseData } from '@/lib/data';
 
@@ -154,13 +154,13 @@ export default function AdminPage() {
     <div className="container mx-auto py-10 px-4">
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">{t('adminPage')}</h1>
       
-      <Tabs defaultValue="purchase_analytics" className="w-full">
+      <Tabs defaultValue="employee_ids" className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 mb-6">
           <TabsTrigger value="employee_ids" className="py-3 text-sm sm:text-base"><Users className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageEmployeeIds')}</TabsTrigger>
           <TabsTrigger value="item_definitions" className="py-3 text-sm sm:text-base"><ListChecks className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageItemDefinitions')}</TabsTrigger>
           <TabsTrigger value="partners" className="py-3 text-sm sm:text-base"><Building className="w-5 h-5 mr-1 sm:mr-2"/> {t('managePartners')}</TabsTrigger>
           <TabsTrigger value="printer_names" className="py-3 text-sm sm:text-base"><Printer className="w-5 h-5 mr-1 sm:mr-2"/> {t('managePrinterNames')}</TabsTrigger>
-          <TabsTrigger value="bulk_upload" className="py-3 text-sm sm:text-base"><UploadCloudIcon className="w-5 h-5 mr-1 sm:mr-2"/> {t('bulkUploadEmployeeIds')}</TabsTrigger>
+          <TabsTrigger value="bulk_upload" className="py-3 text-sm sm:text-base"><UploadCloud className="w-5 h-5 mr-1 sm:mr-2"/> {t('bulkUploadEmployeeIds')}</TabsTrigger>
           <TabsTrigger value="download_reports" className="py-3 text-sm sm:text-base"><FileDown className="w-5 h-5 mr-1 sm:mr-2"/> {t('downloadReports')}</TabsTrigger>
           <TabsTrigger value="purchase_analytics" className="py-3 text-sm sm:text-base"><BarChart2 className="w-5 h-5 mr-1 sm:mr-2"/> {t('analyticsReport')}</TabsTrigger>
         </TabsList>
@@ -203,7 +203,7 @@ export default function AdminPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>{t('purchaseSummaries')}</CardTitle>
-                    </Header>
+                    </CardHeader>
                     <CardContent>
                         <div className="text-center mb-6">
                             <h3 className="text-lg font-semibold mb-2">{t('overallSummary')}</h3>
