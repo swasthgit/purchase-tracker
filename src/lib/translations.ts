@@ -144,6 +144,10 @@ export const translations: Record<Locale, Record<string, string>> = {
     confirmRemoveAllEmployeeIdsDescription: "Are you sure you want to remove all employee IDs? This action cannot be undone.",
     deleteAll: "Delete All",
     emptyId: "Employee ID cannot be empty.",
+    detailedBill: "Detailed Bill",
+    purchaseDate: "Purchase Date",
+    viewDetails: "View Details",
+    noPurchasesFound: "No purchases found."
   },
   hi: {
     appName: 'खरीद ट्रैकर',
@@ -286,5 +290,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     confirmRemoveAllEmployeeIdsDescription: "क्या आप वाकई सभी कर्मचारी आईडी हटाना चाहते हैं? इस क्रिया को पूर्ववत नहीं किया जा सकता।",
     deleteAll: "सभी को हटा दें",
     emptyId: "कर्मचारी आईडी खाली नहीं हो सकता।",
+    detailedBill: "विस्तृत बिल",
+    purchaseDate: "खरीद की तारीख",
+    viewDetails: "विवरण देखें",
+    noPurchasesFound: "कोई खरीद नहीं मिली।"
   },
 };

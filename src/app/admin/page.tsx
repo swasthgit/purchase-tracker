@@ -10,13 +10,14 @@ import { ItemManager } from '@/components/admin/item-manager';
 import { PartnerManager } from '@/components/admin/partner-manager';
 import { PurchaseDataDownloader } from '@/components/admin/purchase-data-downloader';
 import { AnalyticsCharts } from '@/components/admin/analytics-charts';
+import { DetailedBillView } from '@/components/admin/detailed-bill-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/hooks/use-language';
-import { Users, Printer, UploadCloud, ShieldAlert, ListChecks, Building, FileDown, BarChart2, Download } from 'lucide-react';
+import { Users, Printer, UploadCloud, ShieldAlert, ListChecks, Building, FileDown, BarChart2, Download, History } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { getPurchasesByDateRangeFS, PurchaseData } from '@/lib/data';
 
@@ -172,7 +173,7 @@ export default function AdminPage() {
       <h1 className="text-3xl font-bold mb-8 text-center text-primary">{t('adminPage')}</h1>
       
       <Tabs defaultValue="employee_ids" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 mb-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 mb-6">
           <TabsTrigger value="employee_ids" className="py-3 text-sm sm:text-base"><Users className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageEmployeeIds')}</TabsTrigger>
           <TabsTrigger value="item_definitions" className="py-3 text-sm sm:text-base"><ListChecks className="w-5 h-5 mr-1 sm:mr-2"/> {t('manageItemDefinitions')}</TabsTrigger>
           <TabsTrigger value="partners" className="py-3 text-sm sm:text-base"><Building className="w-5 h-5 mr-1 sm:mr-2"/> {t('managePartners')}</TabsTrigger>
@@ -180,6 +181,7 @@ export default function AdminPage() {
           <TabsTrigger value="bulk_upload" className="py-3 text-sm sm:text-base"><UploadCloud className="w-5 h-5 mr-1 sm:mr-2"/> {t('bulkUploadEmployeeIds')}</TabsTrigger>
           <TabsTrigger value="download_reports" className="py-3 text-sm sm:text-base"><FileDown className="w-5 h-5 mr-1 sm:mr-2"/> {t('downloadReports')}</TabsTrigger>
           <TabsTrigger value="purchase_analytics" className="py-3 text-sm sm:text-base"><BarChart2 className="w-5 h-5 mr-1 sm:mr-2"/> {t('analyticsReport')}</TabsTrigger>
+          <TabsTrigger value="detailed_bill" className="py-3 text-sm sm:text-base"><History className="w-5 h-5 mr-1 sm:mr-2"/> {t('detailedBill')}</TabsTrigger>
         </TabsList>
         
         <TabsContent value="employee_ids"><EmployeeIdManager /></TabsContent>
@@ -188,6 +190,7 @@ export default function AdminPage() {
         <TabsContent value="printer_names"><PrinterManager /></TabsContent>
         <TabsContent value="bulk_upload"><BulkIdUploader /></TabsContent>
         <TabsContent value="download_reports"><PurchaseDataDownloader /></TabsContent>
+        <TabsContent value="detailed_bill"><DetailedBillView /></TabsContent>
         <TabsContent value="purchase_analytics">
           <div className="space-y-6">
             <Card>

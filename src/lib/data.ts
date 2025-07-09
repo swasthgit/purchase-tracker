@@ -318,3 +318,32 @@ export const getPurchasesByDateRangeFS = async (startDate: Date, endDate: Date):
     return [];
   }
 };
+
+// --- Get Last N Purchases ---
+export const getLastNPurchasesFS = async (limitCount: number): Promise<PurchaseData[]> => {
+  try {
+    const purchasesCollection = collection(db, 'purchases');
+    const q = query(
+      purchasesCollection,
+      orderBy('createdAt', 'desc'),
+      limit(limitCount)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docSnapshot => {
+      const data = docSnapshot.data();
+      return {
+        id: docSnapshot.id,
+        userId: data.userId,
+        partnerName: data.partnerName,
+        userName: data.userName,
+        items: data.items,
+        uploadedFiles: data.uploadedFiles || [],
+        createdAt: data.createdAt, // This will be a Firestore Timestamp
+        totalAmount: data.totalAmount,
+      } as PurchaseData;
+    });
+  } catch (error) {
+    console.error(`Error fetching last ${limitCount} purchases from Firestore:`, error);
+    return [];
+  }
+};
