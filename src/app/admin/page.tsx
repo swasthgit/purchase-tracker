@@ -1,3 +1,4 @@
+
 // src/app/admin/page.tsx
 "use client";
 
@@ -34,6 +35,8 @@ export default function AdminPage() {
   const [dateWiseSummary, setDateWiseSummary] = useState<Record<string, number>>({});
   const [clinicCodeWiseSummary, setClinicCodeWiseSummary] = useState<Record<string, number>>({});
   const [partnerWiseSummary, setPartnerWiseSummary] = useState<Record<string, number>>({});
+  const [itemWiseSummary, setItemWiseSummary] = useState<Record<string, number>>({});
+  const [userWiseSummary, setUserWiseSummary] = useState<Record<string, number>>({});
   const [overallSummary, setOverallSummary] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,6 +67,8 @@ export default function AdminPage() {
       const dateAgg: Record<string, number> = {};
       const clinicCodeAgg: Record<string, number> = {};
       const partnerAgg: Record<string, number> = {};
+      const itemAgg: Record<string, number> = {};
+      const userAgg: Record<string, number> = {};
       let overallTotal = 0;
 
       data.forEach(purchase => {
@@ -76,9 +81,17 @@ export default function AdminPage() {
         const total = purchase.totalAmount || 0;
         dateAgg[purchaseDate] = (dateAgg[purchaseDate] || 0) + total;
         
+        if (purchase.userName) {
+            userAgg[purchase.userName] = (userAgg[purchase.userName] || 0) + total;
+        }
+        
         purchase.items.forEach(item => {
+            const itemTotal = item.price * item.quantity;
             if (item.clinicCode) {
-                clinicCodeAgg[item.clinicCode] = (clinicCodeAgg[item.clinicCode] || 0) + item.price * item.quantity;
+                clinicCodeAgg[item.clinicCode] = (clinicCodeAgg[item.clinicCode] || 0) + itemTotal;
+            }
+            if(item.itemNameDisplay) {
+                itemAgg[item.itemNameDisplay] = (itemAgg[item.itemNameDisplay] || 0) + itemTotal;
             }
         });
 
@@ -90,6 +103,8 @@ export default function AdminPage() {
       setDateWiseSummary(dateAgg);
       setClinicCodeWiseSummary(clinicCodeAgg);
       setPartnerWiseSummary(partnerAgg);
+      setItemWiseSummary(itemAgg);
+      setUserWiseSummary(userAgg);
       setOverallSummary(overallTotal);
       toast({ title: t('operationSuccess'), description: t('fetchDataSuccess') });
     } catch (error) {
@@ -105,7 +120,9 @@ export default function AdminPage() {
     const rows = [
       ...Object.entries(dateWiseSummary).map(([date, amount]) => ["Date-wise", date, amount.toFixed(2)]),
       ...Object.entries(clinicCodeWiseSummary).map(([code, amount]) => ["Clinic Code-wise", code, amount.toFixed(2)]),
-      ...Object.entries(partnerWiseSummary).map(([partner, amount]) => ["Partner-wise", partner, amount.toFixed(2)])
+      ...Object.entries(partnerWiseSummary).map(([partner, amount]) => ["Partner-wise", partner, amount.toFixed(2)]),
+      ...Object.entries(itemWiseSummary).map(([item, amount]) => ["Item-wise", item, amount.toFixed(2)]),
+      ...Object.entries(userWiseSummary).map(([user, amount]) => ["User-wise", user, amount.toFixed(2)])
     ];
 
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -213,6 +230,8 @@ export default function AdminPage() {
                             dateWiseSummary={dateWiseSummary}
                             clinicCodeWiseSummary={clinicCodeWiseSummary}
                             partnerWiseSummary={partnerWiseSummary}
+                            itemWiseSummary={itemWiseSummary}
+                            userWiseSummary={userWiseSummary}
                         />
                     </CardContent>
                 </Card>

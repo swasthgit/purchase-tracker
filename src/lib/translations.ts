@@ -1,3 +1,4 @@
+
 // src/lib/translations.ts
 export type Locale = 'en' | 'hi';
 
@@ -129,6 +130,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     dateWiseSummary: "Date-wise Summary",
     clinicCodeWiseSummary: "Clinic Code-wise Summary",
     partnerWiseSummary: "Partner-wise Summary",
+    itemWiseSummary: "Item-wise Summary",
+    userWiseSummary: "User-wise Summary",
     overallSummary: "Overall Summary",
     totalAmount: "Total Amount",
     fetchData: "Fetch Data",
@@ -269,6 +272,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     dateWiseSummary: "दिनांक-वार सारांश",
     clinicCodeWiseSummary: "क्लिनिक कोड-वार सारांश",
     partnerWiseSummary: "पार्टनर-वार सारांश",
+    itemWiseSummary: "वस्तु-वार सारांश",
+    userWiseSummary: "उपयोगकर्ता-वार सारांश",
     overallSummary: "कुल सारांश",
     totalAmount: "कुल राशि",
     fetchData: "डेटा प्राप्त करें",
