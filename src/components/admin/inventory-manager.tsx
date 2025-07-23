@@ -33,9 +33,10 @@ const InventoryManager: React.FC = () => {
       try {
         const data = await getInventoryFS();
         setInventoryData(data);
-        setClinicNames(Object.keys(data));
-        if (Object.keys(data).length > 0) {
-          setSelectedClinic(Object.keys(data)[0]);
+        const clinics = Object.keys(data);
+        setClinicNames(clinics);
+        if (clinics.length > 0) {
+          setSelectedClinic(clinics[0]);
         }
       } catch (error) {
         console.error("Failed to fetch inventory:", error);
