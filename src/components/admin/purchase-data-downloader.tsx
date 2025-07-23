@@ -1,4 +1,4 @@
-// src/components/admin/purchase-data-downloader.tsx
+// src/components/admin/purchase-data-downloader.tsx (Corrected)
 "use client";
 
 import React, { useState, useTransition } from 'react';
@@ -80,7 +80,10 @@ export function PurchaseDataDownloader() {
               selectsEnd
               startDate={startDate}
               endDate={endDate}
-              minDate={startDate}
+              // --- FIX START ---
+              // If startDate is null (falsy), use 'undefined' instead.
+              minDate={startDate || undefined}
+              // --- FIX END ---
               dateFormat="MMMM d, yyyy"
               className="w-full p-2 border rounded-md text-sm bg-background"
               popperPlacement="bottom-start"
@@ -96,7 +99,3 @@ export function PurchaseDataDownloader() {
     </Card>
   );
 }
-
-// Add to translations if they don't exist:
-// "selectDateRangeNote": "Select a date range to download purchase data as an Excel file."
-// "selectDateRangeNote": "एक्सेल फ़ाइल के रूप में खरीद डेटा डाउनलोड करने के लिए एक दिनांक सीमा चुनें।" (hi)

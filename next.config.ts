@@ -1,14 +1,17 @@
-
-import type {NextConfig} from 'next';
+// next.config.ts (Corrected)
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
+
+  experimental: {
+    // The 'serverActions' property is now an object to satisfy TypeScript.
+    // I have also included the body size limit configuration here.
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+
   images: {
     remotePatterns: [
       {

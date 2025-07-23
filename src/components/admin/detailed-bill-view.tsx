@@ -1,7 +1,7 @@
-// src/components/admin/detailed-bill-view.tsx
+// src/components/admin/detailed-bill-view.tsx (Corrected)
 "use client";
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,7 +9,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Eye } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
-import { getLastNPurchasesFS, PurchaseData } from '@/lib/data';
+import { getLastNPurchasesFS } from '@/lib/data'; // Corrected Import
+import type { PurchaseData } from '@/types';     // Corrected Import
 import { useToast } from "@/hooks/use-toast";
 import { BillPreview } from '@/components/bill-preview';
 import * as XLSX from 'xlsx';

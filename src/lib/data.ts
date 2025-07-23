@@ -1,6 +1,7 @@
 // src/lib/data.ts
-import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData } from '@/types';
-import { db } from './firebase'; import { QuerySnapshot, Query } from 'firebase/firestore';
+import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta } from '@/types';
+import { db } from './firebase';
+import type { QuerySnapshot, Query } from 'firebase/firestore';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter } from 'firebase/firestore';
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
@@ -20,19 +21,15 @@ export const getEmployeeIdsFS = async (): Promise<SelectOption[]> => {
 
 export const addEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
   try {
-    // Clean the input string
-    const cleanedEmployeeId = employeeIdValue
- .trim() // Remove leading/trailing whitespace
- .replace(/[^\x20-\x7E]/g, ''); // Remove non-printable ASCII characters
-
- if (!cleanedEmployeeId) return { success: false, message: 'emptyId' }; // Prevent adding empty strings
+    const cleanedEmployeeId = employeeIdValue.trim().replace(/[^x20-x7E]/g, '');
+    if (!cleanedEmployeeId) return { success: false, message: 'emptyId' };
 
     const employeeIdsCollection = collection(db, 'employee_ids');
     const snapshot = await getDocs(query(employeeIdsCollection, where("employeeId", "==", cleanedEmployeeId)));
     if (!snapshot.empty) {
       return { success: false, message: 'idExists' };
     }
-    await addDoc(employeeIdsCollection, { employeeId: employeeIdValue, createdAt: serverTimestamp() });
+    await addDoc(employeeIdsCollection, { employeeId: cleanedEmployeeId, createdAt: serverTimestamp() });
     return { success: true };
   } catch (error) {
     console.error("Error adding employee ID to Firestore:", error);
@@ -43,13 +40,11 @@ export const addEmployeeIdFS = async (employeeIdValue: string): Promise<{success
 export const removeEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
   try {
     const employeeIdsCollection = collection(db, 'employee_ids');
-    // We need to find the document ID by the employeeIdValue field
     const q = query(employeeIdsCollection, where("employeeId", "==", employeeIdValue));
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
       return { success: false, message: 'ID not found' };
     }
-    // Assuming employeeIdValue is unique, there should be only one doc
     const docId = snapshot.docs[0].id;
     await deleteDoc(doc(db, 'employee_ids', docId));
     return { success: true };
@@ -63,15 +58,13 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
   let addedCount = 0;
   const errorIds: string[] = [];
   const employeeIdsCollection = collection(db, 'employee_ids');
-
-  // Fetch existing IDs in batches to handle large collections efficiently
   const existingIds = new Set<string>();
   let lastDoc = null;
   while (true) {
     const batchQuery = lastDoc ? query(employeeIdsCollection, orderBy("employeeId"), startAfter(lastDoc), limit(1000)) : query(employeeIdsCollection, orderBy("employeeId"), limit(1000));
     const snapshot: QuerySnapshot = await getDocs(batchQuery as Query);
     if (snapshot.empty) break;
-    snapshot.docs.forEach(doc => existingIds.add(doc.data().employeeId as string)); // Explicitly cast
+    snapshot.docs.forEach(doc => existingIds.add(doc.data().employeeId as string));
     lastDoc = snapshot.docs[snapshot.docs.length - 1];
   }
 
@@ -79,14 +72,14 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
   const uniqueNewIds = new Set<string>();
 
   for (const id of ids) {
-    const trimmedId = id.trim().replace(/[^\x20-\x7E]/g, ''); // Clean the input
+    const trimmedId = id.trim().replace(/[^x20-x7E]/g, '');
     if (trimmedId && !existingIds.has(trimmedId) && !uniqueNewIds.has(trimmedId)) {
       uniqueNewIds.add(trimmedId);
-      const newDocRef = doc(collection(db, 'employee_ids')); 
+      const newDocRef = doc(collection(db, 'employee_ids'));
       batch.set(newDocRef, { employeeId: trimmedId, createdAt: serverTimestamp() });
       addedCount++;
     } else if (trimmedId) {
-      errorIds.push(trimmedId); 
+      errorIds.push(trimmedId);
     }
   }
   try {
@@ -97,7 +90,6 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
      return { success: false, count: 0, errors: ids.filter(id => id.trim()) };
   }
 };
-
 
 // --- Printer Name Management ---
 export const getPrinterNamesFS = async (): Promise<AdminManagedItem[]> => {
@@ -169,13 +161,14 @@ export const addPartnerFS = async (name: string): Promise<{success: boolean, id?
 
 export const updatePartnerFS = async (id: string, newName: string): Promise<{success: boolean, message?: string}> => {
   try {
-    const partnersCollection = collection(db, 'partners');
-    const q = query(partnersCollection, where("name", "==", newName));
-    const snapshot = await getDocs(q);
-    if (!snapshot.empty && snapshot.docs.some(d => d.id !== id)) {
-        return { success: false, message: 'nameExists' };
+    if (newName) {
+        const partnersCollection = collection(db, 'partners');
+        const q = query(partnersCollection, where("name", "==", newName));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty && snapshot.docs.some(d => d.id !== id)) {
+            return { success: false, message: 'nameExists' };
+        }
     }
-
     const partnerDocRef = doc(db, 'partners', id);
     await updateDoc(partnerDocRef, { name: newName, updatedAt: serverTimestamp() });
     return { success: true };
@@ -195,7 +188,6 @@ export const removePartnerFS = async (id: string): Promise<{success: boolean, me
   }
 };
 
-
 // --- Item Definition Management ---
 export const getItemDefinitionsFS = async (): Promise<ItemDefinition[]> => {
   try {
@@ -207,7 +199,7 @@ export const getItemDefinitionsFS = async (): Promise<ItemDefinition[]> => {
       return {
         id: docSnapshot.id,
         name: data.name as string,
-        value: docSnapshot.id, 
+        value: docSnapshot.id,
         label: data.name as string,
         imageUrl: data.imageUrl as string,
         dataAiHint: data.dataAiHint as string | undefined,
@@ -225,7 +217,7 @@ export const addItemDefinitionFS = async (itemData: Omit<ItemDefinition, 'id' | 
     const q = query(itemsCollection, where("name", "==", itemData.name));
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
-      return { success: false, message: 'nameExists' }; 
+      return { success: false, message: 'nameExists' };
     }
     const docRef = await addDoc(itemsCollection, { ...itemData, createdAt: serverTimestamp() });
     return { success: true, id: docRef.id };
@@ -264,7 +256,6 @@ export const removeItemDefinitionFS = async (id: string): Promise<{success: bool
   }
 };
 
-
 // --- Public data getters for the form ---
 export const getPartnerNames = async (): Promise<Partner[]> => {
   return getPartnersFS();
@@ -274,13 +265,13 @@ export const getItemNames = async (): Promise<ItemDefinition[]> => {
   const itemsFromDb = await getItemDefinitionsFS();
   return [
     ...itemsFromDb,
-    { 
-      id: OTHER_ITEM_VALUE, 
-      name: 'Other (Specify)', 
-      value: OTHER_ITEM_VALUE, 
-      label: 'Other (Specify)', 
-      imageUrl: 'https://placehold.co/100x100.png?text=Other', 
-      dataAiHint: "custom item" 
+    {
+      id: OTHER_ITEM_VALUE,
+      name: 'Other (Specify)',
+      value: OTHER_ITEM_VALUE,
+      label: 'Other (Specify)',
+      imageUrl: 'https://placehold.co/100x100.png?text=Other',
+      dataAiHint: "custom item"
     }
   ];
 };
@@ -289,7 +280,6 @@ export const getItemNames = async (): Promise<ItemDefinition[]> => {
 export const getPurchasesByDateRangeFS = async (startDate: Date, endDate: Date): Promise<PurchaseData[]> => {
   try {
     const purchasesCollection = collection(db, 'purchases');
-    // Adjust endDate to include the whole day
     const endOfDayEndDate = new Date(endDate);
     endOfDayEndDate.setHours(23, 59, 59, 999);
 
@@ -302,14 +292,21 @@ export const getPurchasesByDateRangeFS = async (startDate: Date, endDate: Date):
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnapshot => {
       const data = docSnapshot.data();
+      const uploadedFiles: UploadedFileMeta[] = (data.uploadedFiles || []).map((file: any) => ({
+        name: file.name || 'Unknown File',
+        url: file.downloadURL || file.url || '', 
+        type: file.type || 'application/octet-stream', 
+        size: file.size || 0, 
+      }));
+
       return {
         id: docSnapshot.id,
         userId: data.userId,
         partnerName: data.partnerName,
         userName: data.userName,
         items: data.items,
-        uploadedFiles: data.uploadedFiles || [],
-        createdAt: data.createdAt, // This will be a Firestore Timestamp
+        uploadedFiles: uploadedFiles,
+        createdAt: data.createdAt,
         totalAmount: data.totalAmount,
       } as PurchaseData;
     });
@@ -331,19 +328,44 @@ export const getLastNPurchasesFS = async (limitCount: number): Promise<PurchaseD
     const snapshot = await getDocs(q);
     return snapshot.docs.map(docSnapshot => {
       const data = docSnapshot.data();
+      const uploadedFiles: UploadedFileMeta[] = (data.uploadedFiles || []).map((file: any) => ({
+        name: file.name || 'Unknown File',
+        url: file.downloadURL || file.url || '',
+        type: file.type || 'application/octet-stream',
+        size: file.size || 0,
+      }));
+
       return {
         id: docSnapshot.id,
         userId: data.userId,
         partnerName: data.partnerName,
         userName: data.userName,
         items: data.items,
-        uploadedFiles: data.uploadedFiles || [],
-        createdAt: data.createdAt, // This will be a Firestore Timestamp
+        uploadedFiles: uploadedFiles, 
+        createdAt: data.createdAt,
         totalAmount: data.totalAmount,
       } as PurchaseData;
     });
   } catch (error) {
     console.error(`Error fetching last ${limitCount} purchases from Firestore:`, error);
     return [];
+  }
+};
+
+// --- Inventory Management ---
+export const getInventoryFS = async () => {
+  try {
+    const inventoryCollection = collection(db, 'inventory');
+    const snapshot = await getDocs(inventoryCollection);
+    const inventoryData: any = {};
+    
+    snapshot.docs.forEach(doc => {
+      inventoryData[doc.id] = doc.data().items || [];
+    });
+
+    return inventoryData;
+  } catch (error) {
+    console.error("Error fetching inventory data from Firestore:", error);
+    return {};
   }
 };

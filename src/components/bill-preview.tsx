@@ -1,4 +1,4 @@
-// src/components/bill-preview.tsx
+// src/components/bill-preview.tsx (Corrected)
 "use client";
 
 import React from 'react';
@@ -12,24 +12,29 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import type { PurchaseFormValues } from "./purchase-form";
-import type { UploadedFileMeta } from "@/types";
-import { Download, CheckCircle, Printer, FileText as FileIconLucide } from "lucide-react"; // Renamed FileText to avoid conflict if another local FileText exists
+import type { PurchaseData } from "@/types";
+import { Download, CheckCircle, Printer, FileText as FileIconLucide } from "lucide-react";
 import Image from 'next/image';
-import { useToast } from '@/hooks/use-toast';
 
 interface BillPreviewProps {
   isOpen: boolean;
   onClose: () => void;
-  billData: (PurchaseFormValues & { id?: string; uploadedFiles: UploadedFileMeta[]; totalAmount: number }) | null;
+  billData: PurchaseData | null;
   t: (key: string) => string;
   onDownloadExcel: () => void;
 }
 
 export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: BillPreviewProps) {
-  const { toast } = useToast();
-
   if (!billData) return null;
+
+  const getBillDate = () => {
+    if (!billData.createdAt) return new Date();
+    if (typeof billData.createdAt.toDate === 'function') {
+      return billData.createdAt.toDate();
+    }
+    return new Date(billData.createdAt.seconds ? billData.createdAt.seconds * 1000 : Date.now());
+  };
+  const billDate = getBillDate();
 
   const handlePrint = () => {
     const printableContent = document.getElementById('bill-printable-area');
@@ -56,7 +61,7 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
       `);
       printWindow?.document.write('</head><body>');
       printWindow?.document.write(`<h1 class="bill-title">${t('billDetails')}</h1>`);
-      printWindow?.document.write(`<p class="dialog-description">${t('appName')} - ${new Date(billData.createdAt?.seconds ? billData.createdAt.seconds * 1000 : Date.now()).toLocaleString()}</p>`);
+      printWindow?.document.write(`<p class="dialog-description">${t('appName')} - ${billDate.toLocaleString()}</p>`);
       
       const contentToPrint = printableContent.cloneNode(true) as HTMLElement;
       const buttonsSection = contentToPrint.querySelector('.print-buttons-section');
@@ -78,7 +83,7 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
         <DialogHeader>
           <DialogTitle className="text-center sm:text-left">{t('billDetails')}</DialogTitle>
           <DialogDescription className="text-center sm:text-left">
-            {t('appName')} - {new Date(billData.createdAt?.seconds ? billData.createdAt.seconds * 1000 : Date.now()).toLocaleString()}
+            {t('appName')} - {billDate.toLocaleString()}
           </DialogDescription>
         </DialogHeader>
         <Separator />
@@ -95,7 +100,7 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
               <ul className="uploaded-files-list space-y-1 text-sm">
                 {billData.uploadedFiles.map((file, index) => (
                   <li key={index} className="flex items-center">
-                    {file.type.startsWith('image/') ? (
+                    {file.type?.startsWith('image/') ? (
                        <Image src={file.url} alt={file.name} width={30} height={30} className="mr-2 rounded object-cover border" data-ai-hint="uploaded image" />
                     ) : (
                       <FileIconLucide className="w-5 h-5 mr-2 text-muted-foreground" />
@@ -103,7 +108,9 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                     <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
                       {file.name}
                     </a>
-                    <span className="text-xs text-muted-foreground ml-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                    {file.size > 0 &&
+                        <span className="text-xs text-muted-foreground ml-2">({(file.size / 1024).toFixed(1)} KB)</span>
+                    }
                   </li>
                 ))}
               </ul>
@@ -122,9 +129,11 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                   <th className="p-2 border text-right">{t('itemLineTotal')}</th>
                 </tr>
               </thead>
+              {/* --- FIX START --- */}
+              {/* The tbody contains the corrected mapping logic without any misplaced comments. */}
               <tbody>
-                {itemsWithDisplayNames.map((item) => (
-                  <tr key={item.id}>
+                {itemsWithDisplayNames.map((item, index) => (
+                  <tr key={item.id || index}>
                     <td className="p-2 border">{item.itemNameDisplay}</td>
                     <td className="p-2 border text-right">{item.quantity}</td>
                     <td className="p-2 border text-right">{Number(item.price).toFixed(2)}</td>
@@ -132,6 +141,7 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                   </tr>
                 ))}
               </tbody>
+              {/* --- FIX END --- */}
             </table>
           </div>
           

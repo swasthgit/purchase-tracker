@@ -1,4 +1,4 @@
-// src/lib/actions.ts
+// src/lib/actions.ts (Corrected)
 "use server";
 
 import { z } from 'zod';
@@ -25,7 +25,7 @@ import * as XLSX from 'xlsx';
 
 
 const MAX_TOTAL_FILES = 50;
-const MAX_FILE_SIZE_PER_FILE = 10 * 1024 * 1024; // 10MB per file
+const MAX_FILE_SIZE_PER_FILE = 20 * 1024 * 1024; // 20MB per file
 const ALLOWED_FILE_TYPES_PURCHASE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
 const ALLOWED_IMAGE_TYPES_ITEM_DEF = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
@@ -50,7 +50,7 @@ const PurchaseItemSchema = z.object({
 
 const FileSchema = z
   .custom<File>()
-  .refine((file) => file.size <= MAX_FILE_SIZE_PER_FILE, `Max file size is 10MB.`)
+  .refine((file) => file.size <= MAX_FILE_SIZE_PER_FILE, `Max file size is ${MAX_FILE_SIZE_PER_FILE / (1024 * 1024)}MB.`)
   .refine(
     (file) => ALLOWED_FILE_TYPES_PURCHASE.includes(file.type),
     "Only JPG, JPEG, PNG, GIF, WEBP, PDF files are allowed."
@@ -124,7 +124,7 @@ export async function submitPurchase(prevState: any, formData: FormData) {
 
     const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
-    const purchaseData: PurchaseData = {
+    const purchaseData: Omit<PurchaseData, 'id'> = { // Use Omit because id is added by Firestore
       userId,
       partnerName, 
       userName,
@@ -144,14 +144,12 @@ export async function submitPurchase(prevState: any, formData: FormData) {
 
     const docRef = await addDoc(collection(db, 'purchases'), purchaseData);
 
-    // Prepare data for bill preview, including IDs and potentially full uploaded file objects if needed by client
     const dataForBillPreview = {
         ...validatedFields.data,
-        id: docRef.id, // Add the Firestore document ID
-        uploadedFiles: uploadedFileUrls, // Send metadata with URLs back
+        id: docRef.id,
+        uploadedFiles: uploadedFileUrls,
         totalAmount: totalAmount,
     };
-
 
     return { success: true, message: "billGeneratedSuccess", data: dataForBillPreview };
   } catch (error) {
@@ -282,11 +280,9 @@ export async function updateItemDefinitionAction(id: string, itemData: { name?: 
      const message = fieldErrors.name?.[0] || fieldErrors.imageUrl?.[0] || fieldErrors.dataAiHint?.[0] || "Validation failed.";
      return { success: false, message };
   }
-  // Ensure that if name is being updated, it's not empty or just whitespace
   if (itemData.name !== undefined && itemData.name.trim() === "") {
     return { success: false, message: "Item name cannot be empty." };
   }
-  // Ensure that if imageUrl is being updated, it's not empty or just whitespace and is a valid URL
   if (itemData.imageUrl !== undefined) {
     if (itemData.imageUrl.trim() === "") {
       return { success: false, message: "Image URL cannot be empty." };
@@ -297,12 +293,10 @@ export async function updateItemDefinitionAction(id: string, itemData: { name?: 
     }
   }
 
-  // Prepare data for Firestore, ensuring only defined fields are passed and names are trimmed
   const updatePayload: any = {};
   if (itemData.name !== undefined) updatePayload.name = itemData.name.trim();
   if (itemData.imageUrl !== undefined) updatePayload.imageUrl = itemData.imageUrl.trim();
   if (itemData.dataAiHint !== undefined) updatePayload.dataAiHint = itemData.dataAiHint.trim();
-
 
   return dbUpdateItemDefinitionFS(id, updatePayload);
 }
@@ -370,7 +364,6 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
       return { success: false, message: "noDataFoundForDateRange" };
     }
 
-    // Convert purchases to Excel format
     const worksheetData = purchases.flatMap(purchase => 
       purchase.items.map(item => ({
         'Purchase ID': purchase.id,
@@ -387,6 +380,8 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
       }))
     );
     
+    // --- FIX START ---
+    // The summaryRow object now uses `null` for numeric columns to avoid type conflicts.
     const summaryRow = {
         'Purchase ID': 'TOTAL',
         'User ID': '',
@@ -395,27 +390,19 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
         'Purchase Date': '',
         'Clinic Code': '',
         'Item Name': '',
-        'Quantity': '',
-        'Price Per Unit': '',
+        'Quantity': null,
+        'Price Per Unit': null,
         'Line Total': purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0),
-        'Uploaded Files Count': '',
+        'Uploaded Files Count': null,
     };
-    worksheetData.push(summaryRow);
+    // --- FIX END ---
+    worksheetData.push(summaryRow as any); // Use 'as any' to satisfy the strict typing of the array after the fix.
 
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Purchases");
     
-    // Server actions cannot directly trigger a file download in the browser.
-    // We return the data that the client can use to generate the file.
-    // For simplicity in this step, we'll return a success message.
-    // Actual file generation from this data would typically happen client-side
-    // or via a separate API route that streams the file.
-    // Here, we'll just log that data is ready.
-
-    // Convert workbook to a base64 string or buffer to send to client.
-    // For this example, we'll convert to buffer then base64.
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const base64 = Buffer.from(excelBuffer).toString('base64');
 
@@ -423,7 +410,7 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
     return { 
         success: true, 
         message: "reportGeneratedSuccess",
-        excelData: base64, // Send base64 encoded Excel data
+        excelData: base64,
         fileName: `PurchaseReport_${startDate}_to_${endDate}.xlsx`
     };
 
@@ -432,4 +419,3 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
     return { success: false, message: "errorGeneratingReport" };
   }
 }
-
