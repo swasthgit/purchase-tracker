@@ -27,6 +27,9 @@ export function Header() {
           <Button variant="ghost" asChild className="text-xs sm:text-sm px-2 sm:px-3">
             <Link href="/admin">{t('admin')}</Link>
           </Button>
+          <Button variant="ghost" asChild className="text-xs sm:text-sm px-2 sm:px-3">
+            <Link href="/inventory">Inventory</Link>
+          </Button>
         </nav>
         <div className="flex items-center space-x-2">
           <ThemeSwitcher />

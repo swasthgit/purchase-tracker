@@ -10,7 +10,6 @@ import { PartnerManager } from '@/components/admin/partner-manager';
 import { PurchaseDataDownloader } from '@/components/admin/purchase-data-downloader';
 import { AnalyticsCharts } from '@/components/admin/analytics-charts';
 import { DetailedBillView } from '@/components/admin/detailed-bill-view';
-import InventoryManager from '@/components/admin/inventory-manager'; // Import the new component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -164,7 +163,6 @@ export default function AdminPage() {
           <TabsTrigger value="download_reports"><FileDown className="w-4 h-4 mr-1"/>{t('downloadReports')}</TabsTrigger>
           <TabsTrigger value="purchase_analytics"><BarChart2 className="w-4 h-4 mr-1"/>{t('analyticsReport')}</TabsTrigger>
           <TabsTrigger value="detailed_bill"><History className="w-4 h-4 mr-1"/>{t('detailedBill')}</TabsTrigger>
-          <TabsTrigger value="inventory"><Package className="w-4 h-4 mr-1"/>Inventory</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employee_ids"><EmployeeIdManager /></TabsContent>
@@ -174,7 +172,6 @@ export default function AdminPage() {
         <TabsContent value="bulk_upload"><BulkIdUploader /></TabsContent>
         <TabsContent value="download_reports"><PurchaseDataDownloader /></TabsContent>
         <TabsContent value="detailed_bill"><DetailedBillView /></TabsContent>
-        <TabsContent value="inventory"><InventoryManager /></TabsContent>
 
         <TabsContent value="purchase_analytics" className="space-y-6">
           <Card>
