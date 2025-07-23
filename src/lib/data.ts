@@ -360,7 +360,11 @@ export const getInventoryFS = async () => {
     const inventoryData: any = {};
     
     snapshot.docs.forEach(doc => {
-      inventoryData[doc.id] = doc.data().items || [];
+      const items = doc.data().items || [];
+      inventoryData[doc.id] = items.map((item: any, index: number) => ({
+        ...item,
+        id: `${doc.id}-${index}` // Create a stable unique ID for each item
+      }));
     });
 
     return inventoryData;

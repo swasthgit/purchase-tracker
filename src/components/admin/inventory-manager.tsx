@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface InventoryItem {
   id: string;
@@ -80,7 +81,12 @@ const InventoryManager: React.FC = () => {
           </Select>
         </div>
 
-        {selectedClinic && (
+        {isLoading ? (
+            <div className="space-y-2">
+                <Skeleton className="h-8 w-1/2" />
+                <Skeleton className="h-40 w-full" />
+            </div>
+        ) : selectedClinic && (
           <div>
             <h3 className="text-xl font-semibold mt-4 mb-2">Inventory for: <span className="text-primary">{selectedClinic}</span></h3>
             <ScrollArea className="h-[60vh] border rounded-lg">
@@ -93,9 +99,7 @@ const InventoryManager: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
-                    <TableRow><TableCell colSpan={3} className="text-center">Loading...</TableCell></TableRow>
-                  ) : selectedClinicInventory.length > 0 ? (
+                  {selectedClinicInventory.length > 0 ? (
                     selectedClinicInventory.map(item => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item["item name"]}</TableCell>
