@@ -1,8 +1,10 @@
 // src/lib/data.ts
-import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta } from '@/types';
+import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta, InventoryItem } from '@/types';
 import { db } from './firebase';
 import type { QuerySnapshot, Query } from 'firebase/firestore';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter, setDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter, setDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { v4 as uuidv4 } from 'uuid';
+
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
 
@@ -353,20 +355,27 @@ export const getLastNPurchasesFS = async (limitCount: number): Promise<PurchaseD
 };
 
 // --- Inventory Management (Read) ---
-export const getInventoryFS = async () => {
+export const getInventoryFS = async (): Promise<InventoryItem[]> => {
   try {
     const inventoryCollection = collection(db, 'inventory');
     const snapshot = await getDocs(inventoryCollection);
     
-    const inventoryData = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        clinicName: doc.id,
-        "item name": data["item name"] || 'N/A',
-        "quantity": data["quantity"] || 0,
-        "approx price per unit": data["approx price per unit"] || 0,
-      };
+    const inventoryData: InventoryItem[] = [];
+    snapshot.docs.forEach(doc => {
+      const clinicData = doc.data();
+      const clinicName = doc.id;
+      
+      if (Array.isArray(clinicData.items)) {
+        clinicData.items.forEach((item: any) => {
+          inventoryData.push({
+            id: item.id,
+            clinicName: clinicName,
+            "item name": item["item name"] || 'N/A',
+            quantity: item.quantity || 0,
+            "approx price per unit": item["approx price per unit"] || 0,
+          });
+        });
+      }
     });
 
     return inventoryData;
@@ -375,6 +384,7 @@ export const getInventoryFS = async () => {
     return [];
   }
 };
+
 
 export const getClinicsFS = async (): Promise<{id: string, name: string}[]> => {
   try {
@@ -388,34 +398,72 @@ export const getClinicsFS = async (): Promise<{id: string, name: string}[]> => {
 };
 
 // --- Inventory Management (CUD) ---
-export const addInventoryItemFS = async (itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }): Promise<{success: boolean, message?: string}> => {
+export const addInventoryItemFS = async (itemData: Omit<InventoryItem, 'id'>): Promise<{success: boolean, message?: string}> => {
   try {
-    // In our structure, the document ID is the clinic name.
-    const docRef = doc(db, 'inventory', itemData.clinicName);
-    const docSnap = await getDoc(docRef);
-
-    // If the doc exists, it means we are adding a new item to an existing clinic concept, which is not how the DB is structured.
-    // The logic is to set/overwrite the item for a given clinic.
-    // If we want to add a *new* clinic with an item, we use setDoc.
-    await setDoc(docRef, {
-        "item name": itemData["item name"],
-        quantity: itemData.quantity,
-        "approx price per unit": itemData["approx price per unit"],
-        createdAt: docSnap.exists() ? docSnap.data().createdAt : serverTimestamp(),
-        updatedAt: serverTimestamp()
-    }, { merge: true }); // Use merge to avoid overwriting the entire doc if we add more fields later
-
+    const clinicDocRef = doc(db, 'inventory', itemData.clinicName);
+    const newItem = {
+        ...itemData,
+        id: uuidv4(), // Generate a unique ID for the new item
+    };
+    // Atomically add a new item to the "items" array field.
+    await updateDoc(clinicDocRef, {
+        items: arrayUnion(newItem)
+    });
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
+    // If the document does not exist, Firestore throws an error. We can catch it and create the document.
+    if (error.code === 'not-found') {
+        try {
+            const clinicDocRef = doc(db, 'inventory', itemData.clinicName);
+            const newItem = {
+                ...itemData,
+                id: uuidv4(),
+            };
+            await setDoc(clinicDocRef, { items: [newItem], createdAt: serverTimestamp() });
+            return { success: true };
+        } catch (createError) {
+             console.error("Error creating new clinic document in inventory:", createError);
+             return { success: false, message: 'An error occurred while creating the clinic.' };
+        }
+    }
     console.error("Error adding inventory item to Firestore:", error);
     return { success: false, message: 'An error occurred while adding the item.' };
   }
 };
 
-export const updateInventoryItemFS = async (id: string, itemData: { "item name": string; quantity: number; "approx price per unit": number; }): Promise<{success: boolean, message?: string}> => {
+export const updateInventoryItemFS = async (itemData: InventoryItem): Promise<{success: boolean, message?: string}> => {
   try {
-    const docRef = doc(db, 'inventory', id);
-    await updateDoc(docRef, { ...itemData, updatedAt: serverTimestamp() });
+    const clinicDocRef = doc(db, 'inventory', itemData.clinicName);
+    const clinicDoc = await getDoc(clinicDocRef);
+
+    if (!clinicDoc.exists()) {
+      return { success: false, message: 'Clinic not found.' };
+    }
+
+    const clinicData = clinicDoc.data();
+    const items: InventoryItem[] = clinicData.items || [];
+    
+    // Find the item to update and remove it first. This is how you update an element in an array in Firestore.
+    const itemToUpdate = items.find(item => item.id === itemData.id);
+    if (!itemToUpdate) {
+        return { success: false, message: "Item to update not found in clinic's inventory."};
+    }
+
+    // Create the updated item
+    const updatedItem = {
+      ...itemToUpdate,
+      "item name": itemData["item name"],
+      quantity: itemData.quantity,
+      "approx price per unit": itemData["approx price per unit"],
+    };
+    
+    const batch = writeBatch(db);
+    // Atomically remove the old item and add the updated one.
+    batch.update(clinicDocRef, { items: arrayRemove(itemToUpdate) });
+    batch.update(clinicDocRef, { items: arrayUnion(updatedItem) });
+    
+    await batch.commit();
+
     return { success: true };
   } catch (error) {
     console.error("Error updating inventory item in Firestore:", error);
@@ -423,10 +471,26 @@ export const updateInventoryItemFS = async (id: string, itemData: { "item name":
   }
 };
 
-export const removeInventoryItemFS = async (id: string): Promise<{success: boolean, message?: string}> => {
+export const removeInventoryItemFS = async (clinicName: string, itemId: string): Promise<{success: boolean, message?: string}> => {
   try {
-    const docRef = doc(db, 'inventory', id);
-    await deleteDoc(docRef);
+    const clinicDocRef = doc(db, 'inventory', clinicName);
+    const clinicDoc = await getDoc(clinicDocRef);
+
+    if (!clinicDoc.exists()) {
+      return { success: false, message: 'Clinic not found.' };
+    }
+
+    const items: InventoryItem[] = clinicDoc.data().items || [];
+    const itemToRemove = items.find(item => item.id === itemId);
+
+    if (!itemToRemove) {
+      return { success: false, message: "Item not found in clinic's inventory." };
+    }
+
+    await updateDoc(clinicDocRef, {
+      items: arrayRemove(itemToRemove)
+    });
+    
     return { success: true };
   } catch (error) {
     console.error("Error removing inventory item from Firestore:", error);
@@ -434,12 +498,12 @@ export const removeInventoryItemFS = async (id: string): Promise<{success: boole
   }
 };
 
+
 // --- Clinic Bulk Upload ---
 export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success: boolean, count: number, errors: string[]}> => {
   let addedCount = 0;
   const errorNames: string[] = [];
   
-  // Fetch all existing clinic names to avoid duplicates
   const existingClinics = await getClinicsFS();
   const existingClinicNames = new Set(existingClinics.map(c => c.name.toLowerCase()));
 
@@ -450,12 +514,10 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
     const trimmedName = name.trim();
     if (trimmedName && !existingClinicNames.has(trimmedName.toLowerCase()) && !uniqueNewNames.has(trimmedName.toLowerCase())) {
       uniqueNewNames.add(trimmedName.toLowerCase());
-      const newDocRef = doc(db, 'inventory', trimmedName); // Doc ID is the clinic name
-      // Add a placeholder item, as the document can't be empty
+      const newDocRef = doc(db, 'inventory', trimmedName);
+      // Initialize with an empty items array and a creation timestamp
       batch.set(newDocRef, {
-          "item name": "Placeholder",
-          quantity: 0,
-          "approx price per unit": 0,
+          items: [],
           createdAt: serverTimestamp()
       });
       addedCount++;
@@ -471,35 +533,4 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
      console.error("Error bulk adding clinics to Firestore:", error);
      return { success: false, count: 0, errors: clinicNames.filter(name => name.trim()) };
   }
-};
-
-// --- Data Cleanup ---
-export const deleteNumericClinicsFS = async (): Promise<{success: boolean, count: number, message?: string}> => {
-    try {
-        const inventoryCollection = collection(db, 'inventory');
-        const snapshot = await getDocs(inventoryCollection);
-        
-        const batch = writeBatch(db);
-        let deleteCount = 0;
-
-        const numericRegex = /^\d.*\d$|^\d+$/;
-
-        snapshot.docs.forEach(doc => {
-            const clinicName = doc.id;
-            // Check if name starts and ends with a digit, or is purely numeric
-            if (numericRegex.test(clinicName)) {
-                batch.delete(doc.ref);
-                deleteCount++;
-            }
-        });
-
-        if (deleteCount > 0) {
-            await batch.commit();
-        }
-
-        return { success: true, count: deleteCount };
-    } catch (error) {
-        console.error("Error deleting numeric clinics from Firestore:", error);
-        return { success: false, count: 0, message: 'An error occurred during cleanup.' };
-    }
 };

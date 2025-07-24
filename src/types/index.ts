@@ -50,3 +50,11 @@ export interface PurchaseData {
   createdAt: any; // Firestore Timestamp or Date
   totalAmount?: number; // Optional, can be calculated
 }
+
+export interface InventoryItem {
+  id: string;
+  clinicName: string;
+  "item name": string;
+  quantity: number;
+  "approx price per unit": number;
+}

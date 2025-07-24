@@ -15,19 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Search } from 'lucide-react';
-
-interface InventoryItem {
-  id: string;
-  clinicName: string;
-  "item name": string;
-  quantity: number;
-  "approx price per unit": number;
-}
-
-interface Clinic {
-    id: string;
-    name: string;
-}
+import type { InventoryItem } from '@/types';
 
 const initialFormState: Omit<InventoryItem, 'id'> = {
   clinicName: '',
@@ -40,7 +28,7 @@ const InventoryManager: React.FC = () => {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
-  const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [clinics, setClinics] = useState<{ id: string, name: string }[]>([]);
   const [selectedClinic, setSelectedClinic] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,10 +41,7 @@ const InventoryManager: React.FC = () => {
     try {
       const [data, clinicList] = await Promise.all([getInventoryFS(), getClinicsFS()]);
       setInventoryData(data);
-      setClinics(clinicList);
-      if (clinicList.length > 0) {
-          // Do not automatically select a clinic
-      }
+      setClinics(clinicList.sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error("Failed to fetch inventory data:", error);
       toast({ variant: "destructive", title: "Error", description: "Failed to fetch inventory data." });
@@ -98,9 +83,10 @@ const InventoryManager: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const action = editingItem 
-        ? updateInventoryItemAction(editingItem.id, formData)
-        : addInventoryItemAction(formData);
+        const payload = { ...formData, id: editingItem?.id };
+        const action = editingItem 
+            ? updateInventoryItemAction(payload)
+            : addInventoryItemAction(payload);
 
       const result = await action;
       if (result.success) {
@@ -180,7 +166,7 @@ const InventoryManager: React.FC = () => {
                     <TableRow key={item.id}>
                       <TableCell>{item["item name"]}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">{item["approx price per unit"]}</TableCell>
+                      <TableCell className="text-right">{item["approx price per unit"].toFixed(2)}</TableCell>
                       <TableCell className="text-center">
                         <Button variant="outline" size="icon" onClick={() => handleEdit(item)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />

@@ -23,7 +23,6 @@ import {
   updateInventoryItemFS,
   removeInventoryItemFS,
   bulkAddClinicsFS,
-  deleteNumericClinicsFS,
 } from '@/lib/data';
 import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData } from '@/types';
 import * as XLSX from 'xlsx';
@@ -431,32 +430,38 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
 }
 
 // --- Inventory CRUD Actions ---
-const InventoryItemSchema = z.object({
+const InventoryItemPayloadSchema = z.object({
     clinicName: z.string().min(1, "Clinic name is required"),
+    id: z.string().optional(), // For updates
     "item name": z.string().min(1, "Item name is required"),
     quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
     "approx price per unit": z.coerce.number().min(0, "Price cannot be negative"),
 });
 
-export async function addInventoryItemAction(itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }) {
-    const validation = InventoryItemSchema.safeParse(itemData);
+export async function addInventoryItemAction(itemData: z.infer<typeof InventoryItemPayloadSchema>) {
+    const validation = InventoryItemPayloadSchema.safeParse(itemData);
     if (!validation.success) {
         return { success: false, message: validation.error.errors[0].message };
     }
     return addInventoryItemFS(validation.data);
 }
 
-export async function updateInventoryItemAction(id: string, itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }) {
-    const validation = InventoryItemSchema.safeParse(itemData);
+export async function updateInventoryItemAction(itemData: z.infer<typeof InventoryItemPayloadSchema>) {
+    if (!itemData.id) {
+        return { success: false, message: "Item ID is required for updates." };
+    }
+    const validation = InventoryItemPayloadSchema.safeParse(itemData);
     if (!validation.success) {
         return { success: false, message: validation.error.errors[0].message };
     }
-    const { "item name": itemName, quantity, "approx price per unit": approxPrice } = validation.data;
-    return updateInventoryItemFS(id, { "item name": itemName, quantity, "approx price per unit": approxPrice });
+    return updateInventoryItemFS(validation.data);
 }
 
-export async function removeInventoryItemAction(id: string) {
-    return removeInventoryItemFS(id);
+export async function removeInventoryItemAction(clinicName: string, itemId: string) {
+    if (!clinicName || !itemId) {
+        return { success: false, message: "Clinic name and Item ID are required." };
+    }
+    return removeInventoryItemFS(clinicName, itemId);
 }
 
 // --- Clinic Bulk Upload ---
@@ -507,9 +512,4 @@ export async function bulkUploadClinicsAction(formData: FormData) {
     console.error('Error processing bulk clinic upload:', error);
     return { success: false, message: 'Failed to process file. Ensure it is a valid CSV or Excel file.' };
   }
-}
-
-// --- Clinic Data Cleanup Action ---
-export async function deleteNumericClinicsAction() {
-    return deleteNumericClinicsFS();
 }

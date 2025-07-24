@@ -1,85 +1,23 @@
 // src/components/admin/inventory-crud-manager.tsx
 "use client";
 
-import React, {
-  useState,
-  useEffect,
-  useTransition
-} from 'react';
-import {
-  getInventoryFS
-} from '@/lib/data';
-import {
-  addInventoryItemAction,
-  updateInventoryItemAction,
-  removeInventoryItemAction,
-} from '@/lib/actions';
-import {
-  Input
-} from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription
-} from '@/components/ui/card';
-import {
-  ScrollArea
-} from '@/components/ui/scroll-area';
-import {
-  Button
-} from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Label
-} from '@/components/ui/label';
-import {
-  useToast
-} from "@/hooks/use-toast";
-import {
-  PlusCircle,
-  Edit,
-  Trash2,
-} from 'lucide-react';
-import {
-  Skeleton
-} from '@/components/ui/skeleton';
+import React, { useState, useEffect, useTransition } from 'react';
+import { getInventoryFS } from '@/lib/data';
+import { addInventoryItemAction, updateInventoryItemAction, removeInventoryItemAction } from '@/lib/actions';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Label } from '@/components/ui/label';
+import { useToast } from "@/hooks/use-toast";
+import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { InventoryItem } from '@/types';
 
-interface InventoryItem {
-  id: string;
-  clinicName: string;
-  "item name": string;
-  quantity: number;
-  "approx price per unit": number;
-}
-
-const initialFormState: Omit < InventoryItem, 'id' > = {
+const initialFormState: Omit<InventoryItem, 'id'> = {
   clinicName: '',
   "item name": '',
   quantity: 0,
@@ -87,17 +25,15 @@ const initialFormState: Omit < InventoryItem, 'id' > = {
 };
 
 const InventoryCrudManager: React.FC = () => {
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [inventoryData, setInventoryData] = useState < InventoryItem[] > ([]);
+  const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState < InventoryItem | null > (null);
-  const [formData, setFormData] = useState < Omit < InventoryItem, 'id' >> (initialFormState);
-  const [itemToRemove, setItemToRemove] = useState < InventoryItem | null > (null);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [formData, setFormData] = useState<Omit<InventoryItem, 'id'>>(initialFormState);
+  const [itemToRemove, setItemToRemove] = useState<InventoryItem | null>(null);
 
 
   const fetchInventory = async () => {
@@ -107,11 +43,7 @@ const InventoryCrudManager: React.FC = () => {
       setInventoryData(data);
     } catch (error) {
       console.error("Failed to fetch inventory:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch inventory."
-      });
+      toast({ variant: "destructive", title: "Error", description: "Failed to fetch inventory." });
     } finally {
       setIsLoading(false);
     }
@@ -121,16 +53,9 @@ const InventoryCrudManager: React.FC = () => {
     fetchInventory();
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent < HTMLInputElement > ) => {
-    const {
-      name,
-      value,
-      type
-    } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
-    }));
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
   };
 
   const handleAddNew = () => {
@@ -153,24 +78,16 @@ const InventoryCrudManager: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const action = editingItem ?
-        updateInventoryItemAction(editingItem.id, formData) :
-        addInventoryItemAction(formData);
-
+      const payload = { ...formData, id: editingItem?.id };
+      const action = editingItem ? updateInventoryItemAction(payload) : addInventoryItemAction(payload);
+      
       const result = await action;
       if (result.success) {
-        toast({
-          title: "Success",
-          description: `Inventory item ${editingItem ? 'updated' : 'added'}.`
-        });
+        toast({ title: "Success", description: `Inventory item ${editingItem ? 'updated' : 'added'}.` });
         setIsDialogOpen(false);
         fetchInventory();
       } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.message || "An unknown error occurred."
-        });
+        toast({ variant: "destructive", title: "Error", description: result.message || "An unknown error occurred." });
       }
     });
   };
@@ -178,19 +95,12 @@ const InventoryCrudManager: React.FC = () => {
   const handleDelete = async () => {
     if (!itemToRemove) return;
     startTransition(async () => {
-      const result = await removeInventoryItemAction(itemToRemove.id);
+      const result = await removeInventoryItemAction(itemToRemove.clinicName, itemToRemove.id);
       if (result.success) {
-        toast({
-          title: "Success",
-          description: `Item "${itemToRemove['item name']}" deleted.`
-        });
+        toast({ title: "Success", description: `Item "${itemToRemove['item name']}" deleted.` });
         fetchInventory();
       } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.message || "Failed to delete item."
-        });
+        toast({ variant: "destructive", title: "Error", description: result.message || "Failed to delete item." });
       }
       setItemToRemove(null);
     });
@@ -254,7 +164,7 @@ const InventoryCrudManager: React.FC = () => {
                       <TableCell className="font-medium">{item.clinicName}</TableCell>
                       <TableCell>{item["item name"]}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">{item["approx price per unit"]}</TableCell>
+                      <TableCell className="text-right">{item["approx price per unit"].toFixed(2)}</TableCell>
                       <TableCell className="text-center space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleEdit(item)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />
@@ -293,9 +203,7 @@ const InventoryCrudManager: React.FC = () => {
                 onChange={handleInputChange}
                 placeholder="e.g., clinic 8"
                 required
-                disabled={!!editingItem}
               />
-              {editingItem && <p className="text-xs text-muted-foreground mt-1">Clinic Name cannot be changed.</p>}
             </div>
             <div>
               <Label htmlFor="item name">Item Name</Label>
