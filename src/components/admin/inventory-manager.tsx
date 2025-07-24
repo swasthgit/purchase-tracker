@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useTransition } from 'react';
 import { getInventoryFS, getClinicsFS } from '@/lib/data';
-import { addInventoryItemAction, updateInventoryItemAction } from '@/lib/actions';
+import { addInventoryItemAction, updateInventoryItemAction, removeInventoryItemAction } from '@/lib/actions';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,9 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Search } from 'lucide-react';
+import { PlusCircle, Edit, Search, Trash2 } from 'lucide-react';
 import type { InventoryItem } from '@/types';
 
 const initialFormState: Omit<InventoryItem, 'id'> = {
@@ -35,6 +36,7 @@ const InventoryManager: React.FC = () => {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState<Omit<InventoryItem, 'id'>>(initialFormState);
   const [searchTerm, setSearchTerm] = useState('');
+  const [itemToRemove, setItemToRemove] = useState<InventoryItem | null>(null);
 
   const fetchInventoryAndClinics = async () => {
     setIsLoading(true);
@@ -96,6 +98,20 @@ const InventoryManager: React.FC = () => {
       } else {
         toast({ variant: "destructive", title: "Error", description: result.message || "An unknown error occurred." });
       }
+    });
+  };
+  
+  const handleDelete = async () => {
+    if (!itemToRemove) return;
+    startTransition(async () => {
+      const result = await removeInventoryItemAction(itemToRemove.clinicName, itemToRemove.id);
+      if (result.success) {
+        toast({ title: "Success", description: `Item "${itemToRemove['item name']}" deleted.` });
+        fetchInventoryAndClinics();
+      } else {
+        toast({ variant: "destructive", title: "Error", description: result.message || "Failed to delete item." });
+      }
+      setItemToRemove(null);
     });
   };
 
@@ -167,9 +183,12 @@ const InventoryManager: React.FC = () => {
                       <TableCell>{item["item name"]}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{item["approx price per unit"].toFixed(2)}</TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center space-x-2">
                         <Button variant="outline" size="icon" onClick={() => handleEdit(item)} className="h-8 w-8">
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => setItemToRemove(item)} className="h-8 w-8">
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -218,6 +237,23 @@ const InventoryManager: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+      
+      <AlertDialog open={!!itemToRemove} onOpenChange={(open) => !open && setItemToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the item "{itemToRemove?.["item name"]}" from the "{itemToRemove?.clinicName}" inventory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setItemToRemove(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
+              {isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

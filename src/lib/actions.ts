@@ -24,7 +24,7 @@ import {
   removeInventoryItemFS,
   bulkAddClinicsFS,
 } from '@/lib/data';
-import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData } from '@/types';
+import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData, InventoryItem } from '@/types';
 import * as XLSX from 'xlsx';
 
 
@@ -459,7 +459,7 @@ export async function updateInventoryItemAction(itemData: z.infer<typeof Invento
 
 export async function removeInventoryItemAction(clinicName: string, itemId: string) {
     if (!clinicName || !itemId) {
-        return { success: false, message: "Clinic name and Item ID are required." };
+        return { success: false, message: "Clinic name and Item ID are required for this operation." };
     }
     return removeInventoryItemFS(clinicName, itemId);
 }
