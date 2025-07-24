@@ -13,7 +13,6 @@ import {
   addInventoryItemAction,
   updateInventoryItemAction,
   removeInventoryItemAction,
-  deleteNumericClinicsAction
 } from '@/lib/actions';
 import {
   Input
@@ -67,7 +66,6 @@ import {
   PlusCircle,
   Edit,
   Trash2,
-  AlertTriangle
 } from 'lucide-react';
 import {
   Skeleton
@@ -100,7 +98,6 @@ const InventoryCrudManager: React.FC = () => {
   const [editingItem, setEditingItem] = useState < InventoryItem | null > (null);
   const [formData, setFormData] = useState < Omit < InventoryItem, 'id' >> (initialFormState);
   const [itemToRemove, setItemToRemove] = useState < InventoryItem | null > (null);
-  const [isCleanupConfirmOpen, setIsCleanupConfirmOpen] = useState(false);
 
 
   const fetchInventory = async () => {
@@ -199,20 +196,6 @@ const InventoryCrudManager: React.FC = () => {
     });
   };
 
-  const handleCleanup = async () => {
-    startTransition(async () => {
-      const result = await deleteNumericClinicsAction();
-      if (result.success) {
-        toast({ title: "Success", description: `${result.count} clinics deleted.` });
-        fetchInventory();
-      } else {
-        toast({ variant: "destructive", title: "Error", description: result.message || "Cleanup failed." });
-      }
-      setIsCleanupConfirmOpen(false);
-    });
-  };
-
-
   const filteredItems = inventoryData.filter(item =>
     item.clinicName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item["item name"].toLowerCase().includes(searchTerm.toLowerCase())
@@ -228,10 +211,6 @@ const InventoryCrudManager: React.FC = () => {
               <CardDescription>Add, edit, or delete inventory items.</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={() => setIsCleanupConfirmOpen(true)} size="sm" variant="destructive">
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Delete Numeric Clinics
-                </Button>
                 <Button onClick={handleAddNew} size="sm">
                   <PlusCircle className="h-4 w-4 mr-2" /> Add New Item
                 </Button>
@@ -379,23 +358,6 @@ const InventoryCrudManager: React.FC = () => {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={isCleanupConfirmOpen} onOpenChange={setIsCleanupConfirmOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Confirm Data Cleanup</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      Are you sure you want to delete all clinics where the name starts and ends with a number? This action cannot be undone.
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleCleanup} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
-                      {isPending ? "Deleting..." : "Confirm & Delete"}
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
       </AlertDialog>
     </>
   );
