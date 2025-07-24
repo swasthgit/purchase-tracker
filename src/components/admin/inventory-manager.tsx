@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 interface InventoryItem {
   id: string;
-  clinicName: string;
+  clinicName: string; // This property was missing from the type definition
   "item name": string;
   quantity: number;
   "approx price per unit": number;
