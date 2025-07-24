@@ -23,6 +23,7 @@ import {
   updateInventoryItemFS,
   removeInventoryItemFS,
   bulkAddClinicsFS,
+  deleteNumericClinicsFS,
 } from '@/lib/data';
 import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData } from '@/types';
 import * as XLSX from 'xlsx';
@@ -506,4 +507,9 @@ export async function bulkUploadClinicsAction(formData: FormData) {
     console.error('Error processing bulk clinic upload:', error);
     return { success: false, message: 'Failed to process file. Ensure it is a valid CSV or Excel file.' };
   }
+}
+
+// --- Clinic Data Cleanup Action ---
+export async function deleteNumericClinicsAction() {
+    return deleteNumericClinicsFS();
 }

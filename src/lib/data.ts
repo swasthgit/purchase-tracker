@@ -472,3 +472,34 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
      return { success: false, count: 0, errors: clinicNames.filter(name => name.trim()) };
   }
 };
+
+// --- Data Cleanup ---
+export const deleteNumericClinicsFS = async (): Promise<{success: boolean, count: number, message?: string}> => {
+    try {
+        const inventoryCollection = collection(db, 'inventory');
+        const snapshot = await getDocs(inventoryCollection);
+        
+        const batch = writeBatch(db);
+        let deleteCount = 0;
+
+        const numericRegex = /^\d.*\d$|^\d+$/;
+
+        snapshot.docs.forEach(doc => {
+            const clinicName = doc.id;
+            // Check if name starts and ends with a digit, or is purely numeric
+            if (numericRegex.test(clinicName)) {
+                batch.delete(doc.ref);
+                deleteCount++;
+            }
+        });
+
+        if (deleteCount > 0) {
+            await batch.commit();
+        }
+
+        return { success: true, count: deleteCount };
+    } catch (error) {
+        console.error("Error deleting numeric clinics from Firestore:", error);
+        return { success: false, count: 0, message: 'An error occurred during cleanup.' };
+    }
+};
