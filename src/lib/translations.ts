@@ -147,7 +147,13 @@ export const translations: Record<Locale, Record<string, string>> = {
     detailedBill: "Detailed Bill",
     purchaseDate: "Purchase Date",
     viewDetails: "View Details",
-    noPurchasesFound: "No purchases found."
+    noPurchasesFound: "No purchases found.",
+    bulkUploadClinics: 'Bulk Upload Clinics',
+    uploadClinicFile: 'Upload Clinic CSV/Excel File',
+    clinicColumnHeaderNote: 'File with "clinic" or "clinic name" column header',
+    clinicBulkUploadNote: 'Note: The file should have one column with a header like "clinic" or be a list of names. Duplicate clinic names will be ignored.',
+    clickToUpload: 'Click to upload',
+    orDragAndDrop: 'or drag and drop',
   },
   hi: {
     appName: 'खरीद ट्रैकर',
@@ -293,6 +299,12 @@ export const translations: Record<Locale, Record<string, string>> = {
     detailedBill: "विस्तृत बिल",
     purchaseDate: "खरीद की तारीख",
     viewDetails: "विवरण देखें",
-    noPurchasesFound: "कोई खरीद नहीं मिली।"
+    noPurchasesFound: "कोई खरीद नहीं मिली।",
+    bulkUploadClinics: 'क्लीनिक थोक में अपलोड करें',
+    uploadClinicFile: 'क्लीनिक CSV/एक्सेल फ़ाइल अपलोड करें',
+    clinicColumnHeaderNote: '"क्लीनिक" या "क्लीनिक नाम" कॉलम हेडर वाली फ़ाइल',
+    clinicBulkUploadNote: 'नोट: फ़ाइल में "क्लीनिक" जैसा हेडर वाला एक कॉलम होना चाहिए या नामों की सूची होनी चाहिए। डुप्लिकेट क्लीनिक नामों को अनदेखा कर दिया जाएगा।',
+    clickToUpload: 'अपलोड करने के लिए क्लिक करें',
+    orDragAndDrop: 'या खींचें और छोड़ें',
   },
 };

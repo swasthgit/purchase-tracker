@@ -2,7 +2,7 @@
 import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta } from '@/types';
 import { db } from './firebase';
 import type { QuerySnapshot, Query } from 'firebase/firestore';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter, setDoc, getDoc } from 'firebase/firestore';
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
 
@@ -376,17 +376,35 @@ export const getInventoryFS = async () => {
   }
 };
 
+export const getClinicsFS = async (): Promise<{id: string, name: string}[]> => {
+  try {
+    const inventoryCollection = collection(db, 'inventory');
+    const snapshot = await getDocs(inventoryCollection);
+    return snapshot.docs.map(doc => ({ id: doc.id, name: doc.id }));
+  } catch (error) {
+    console.error("Error fetching clinic names from Firestore:", error);
+    return [];
+  }
+};
+
 // --- Inventory Management (CUD) ---
 export const addInventoryItemFS = async (itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }): Promise<{success: boolean, message?: string}> => {
   try {
+    // In our structure, the document ID is the clinic name.
     const docRef = doc(db, 'inventory', itemData.clinicName);
-    // Use setDoc to create a new document with a specific ID (clinicName)
+    const docSnap = await getDoc(docRef);
+
+    // If the doc exists, it means we are adding a new item to an existing clinic concept, which is not how the DB is structured.
+    // The logic is to set/overwrite the item for a given clinic.
+    // If we want to add a *new* clinic with an item, we use setDoc.
     await setDoc(docRef, {
         "item name": itemData["item name"],
         quantity: itemData.quantity,
         "approx price per unit": itemData["approx price per unit"],
-        createdAt: serverTimestamp()
-    });
+        createdAt: docSnap.exists() ? docSnap.data().createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp()
+    }, { merge: true }); // Use merge to avoid overwriting the entire doc if we add more fields later
+
     return { success: true };
   } catch (error) {
     console.error("Error adding inventory item to Firestore:", error);
@@ -413,5 +431,44 @@ export const removeInventoryItemFS = async (id: string): Promise<{success: boole
   } catch (error) {
     console.error("Error removing inventory item from Firestore:", error);
     return { success: false, message: 'An error occurred while deleting the item.' };
+  }
+};
+
+// --- Clinic Bulk Upload ---
+export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success: boolean, count: number, errors: string[]}> => {
+  let addedCount = 0;
+  const errorNames: string[] = [];
+  
+  // Fetch all existing clinic names to avoid duplicates
+  const existingClinics = await getClinicsFS();
+  const existingClinicNames = new Set(existingClinics.map(c => c.name.toLowerCase()));
+
+  const batch = writeBatch(db);
+  const uniqueNewNames = new Set<string>();
+
+  for (const name of clinicNames) {
+    const trimmedName = name.trim();
+    if (trimmedName && !existingClinicNames.has(trimmedName.toLowerCase()) && !uniqueNewNames.has(trimmedName.toLowerCase())) {
+      uniqueNewNames.add(trimmedName.toLowerCase());
+      const newDocRef = doc(db, 'inventory', trimmedName); // Doc ID is the clinic name
+      // Add a placeholder item, as the document can't be empty
+      batch.set(newDocRef, {
+          "item name": "Placeholder",
+          quantity: 0,
+          "approx price per unit": 0,
+          createdAt: serverTimestamp()
+      });
+      addedCount++;
+    } else if (trimmedName) {
+      errorNames.push(trimmedName);
+    }
+  }
+
+  try {
+    await batch.commit();
+    return { success: true, count: addedCount, errors: errorNames };
+  } catch (error) {
+     console.error("Error bulk adding clinics to Firestore:", error);
+     return { success: false, count: 0, errors: clinicNames.filter(name => name.trim()) };
   }
 };

@@ -22,6 +22,7 @@ import {
   addInventoryItemFS,
   updateInventoryItemFS,
   removeInventoryItemFS,
+  bulkAddClinicsFS,
 } from '@/lib/data';
 import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData } from '@/types';
 import * as XLSX from 'xlsx';
@@ -383,8 +384,6 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
       }))
     );
     
-    // --- FIX START ---
-    // The summaryRow object now uses `null` for numeric columns to avoid type conflicts.
     const summaryRow = {
         'Purchase ID': 'TOTAL',
         'User ID': '',
@@ -398,8 +397,7 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
         'Line Total': purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0),
         'Uploaded Files Count': null,
     };
-    // --- FIX END ---
-    worksheetData.push(summaryRow as any); // Use 'as any' to satisfy the strict typing of the array after the fix.
+    worksheetData.push(summaryRow as any);
 
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
@@ -444,11 +442,59 @@ export async function updateInventoryItemAction(id: string, itemData: { clinicNa
     if (!validation.success) {
         return { success: false, message: validation.error.errors[0].message };
     }
-    // We only need the data for updating, not the clinicName which is the ID
     const { "item name": itemName, quantity, "approx price per unit": approxPrice } = validation.data;
     return updateInventoryItemFS(id, { "item name": itemName, quantity, "approx price per unit": approxPrice });
 }
 
 export async function removeInventoryItemAction(id: string) {
     return removeInventoryItemFS(id);
+}
+
+// --- Clinic Bulk Upload ---
+export async function bulkUploadClinicsAction(formData: FormData) {
+  const file = formData.get('clinicFile') as File | null;
+  if (!file) {
+    return { success: false, message: 'No file uploaded.' };
+  }
+
+  const allowedMimeTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+  const allowedExtensions = ['.csv', '.xls', '.xlsx'];
+  const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+
+  if (!allowedMimeTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+     return { success: false, message: 'Invalid file type. Please upload a CSV or Excel file.' };
+  }
+
+  try {
+    const textContent = await file.text();
+    const lines = textContent.split(/\r\n|\n|\r/).map(line => line.trim()).filter(line => line);
+    
+    let clinicsToUpload: string[] = [];
+
+    if (lines.length > 0) {
+      const header = lines[0].toLowerCase().replace(/\s+/g, '');
+      // Check for a header like 'clinicname' or 'clinic'
+      if (header.includes('clinic')) { 
+         clinicsToUpload = lines.slice(1).map(name => name.trim()).filter(name => name);
+      } else {
+        clinicsToUpload = lines.map(name => name.trim()).filter(name => name);
+      }
+    }
+    
+    if (clinicsToUpload.length === 0) {
+      return { success: false, message: 'No valid clinic names found in the file. Ensure the header is "clinic" or "clinic name" or provide a list of names.' };
+    }
+
+    const result = await bulkAddClinicsFS(clinicsToUpload);
+    
+    let message = `Successfully added ${result.count} new clinics.`;
+    if (result.errors.length > 0) {
+      message += ` ${result.errors.length} clinics already existed or were duplicates/invalid: ${result.errors.slice(0,5).join(', ')}${result.errors.length > 5 ? '...' : ''}.`;
+    }
+    return { success: true, message };
+
+  } catch (error) {
+    console.error('Error processing bulk clinic upload:', error);
+    return { success: false, message: 'Failed to process file. Ensure it is plain text.' };
+  }
 }

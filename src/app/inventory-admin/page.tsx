@@ -10,9 +10,12 @@ import { useLanguage } from '@/hooks/use-language';
 import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert } from 'lucide-react';
 import InventoryCrudManager from '@/components/admin/inventory-crud-manager';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BulkClinicUploader } from '@/components/admin/bulk-clinic-uploader';
+import { ListChecks, UploadCloud } from 'lucide-react';
 
-const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "mswasth";
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "mswasth";
+const ADMIN_USERNAME = process.env.NEXT_PUBLIC_INVENTORY_ADMIN_USERNAME || "tracker321";
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_INVENTORY_ADMIN_PASSWORD || "321tracker";
 
 export default function InventoryAdminPage() {
   const { t } = useLanguage();
@@ -61,7 +64,19 @@ export default function InventoryAdminPage() {
 
   return (
     <div className="container mx-auto py-10 px-4">
-      <InventoryCrudManager />
+      <h1 className="text-3xl font-bold mb-8 text-center text-primary">Inventory Admin</h1>
+        <Tabs defaultValue="manage_inventory" className="w-full">
+            <TabsList className="flex flex-wrap h-auto justify-center mb-6">
+                <TabsTrigger value="manage_inventory"><ListChecks className="w-4 h-4 mr-1"/>Manage Inventory</TabsTrigger>
+                <TabsTrigger value="bulk_upload_clinics"><UploadCloud className="w-4 h-4 mr-1"/>Bulk Upload Clinics</TabsTrigger>
+            </TabsList>
+            <TabsContent value="manage_inventory">
+                <InventoryCrudManager />
+            </TabsContent>
+            <TabsContent value="bulk_upload_clinics">
+                <BulkClinicUploader />
+            </TabsContent>
+        </Tabs>
     </div>
   );
 }
