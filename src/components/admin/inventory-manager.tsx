@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit } from 'lucide-react';
+import { PlusCircle, Edit, Search } from 'lucide-react';
 
 interface InventoryItem {
   id: string;
@@ -46,6 +46,7 @@ const InventoryManager: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState<Omit<InventoryItem, 'id'>>(initialFormState);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchInventoryAndClinics = async () => {
     setIsLoading(true);
@@ -54,7 +55,7 @@ const InventoryManager: React.FC = () => {
       setInventoryData(data);
       setClinics(clinicList);
       if (clinicList.length > 0) {
-          setSelectedClinic(clinicList[0].id);
+          // Do not automatically select a clinic
       }
     } catch (error) {
       console.error("Failed to fetch inventory data:", error);
@@ -112,6 +113,7 @@ const InventoryManager: React.FC = () => {
     });
   };
 
+  const filteredClinics = clinics.filter(clinic => clinic.name.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredItems = selectedClinic ? inventoryData.filter(item => item.clinicName === selectedClinic) : [];
 
   return (
@@ -123,18 +125,32 @@ const InventoryManager: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <Select onValueChange={setSelectedClinic} value={selectedClinic} disabled={isLoading}>
-                <SelectTrigger className="w-full sm:w-[280px]">
-                    <SelectValue placeholder="Select a clinic..." />
-                </SelectTrigger>
-                <SelectContent>
-                    {clinics.map(clinic => (
-                        <SelectItem key={clinic.id} value={clinic.id}>{clinic.name}</SelectItem>
-                    ))}
-                    {clinics.length === 0 && <SelectItem value="loading" disabled>Loading clinics...</SelectItem>}
-                </SelectContent>
-            </Select>
-            <Button onClick={handleAddNew} size="sm" disabled={!selectedClinic || isLoading}>
+            <div className="w-full sm:w-auto flex-grow">
+                 <Label htmlFor="clinic-select">Select Clinic</Label>
+                <Select onValueChange={setSelectedClinic} value={selectedClinic} disabled={isLoading}>
+                    <SelectTrigger id="clinic-select" className="w-full">
+                        <SelectValue placeholder="Select a clinic..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                         <div className="p-2">
+                             <div className="relative">
+                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                 <Input 
+                                     placeholder="Search clinics..." 
+                                     className="pl-8 w-full"
+                                     value={searchTerm}
+                                     onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                             </div>
+                        </div>
+                        {filteredClinics.map(clinic => (
+                            <SelectItem key={clinic.id} value={clinic.id}>{clinic.name}</SelectItem>
+                        ))}
+                        {filteredClinics.length === 0 && <div className="text-center text-sm text-muted-foreground p-2">No clinics found.</div>}
+                    </SelectContent>
+                </Select>
+            </div>
+            <Button onClick={handleAddNew} size="sm" disabled={!selectedClinic || isLoading} className="w-full sm:w-auto self-end">
               <PlusCircle className="h-4 w-4 mr-2" /> Add New Item to Clinic
             </Button>
           </div>

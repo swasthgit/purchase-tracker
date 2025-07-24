@@ -196,7 +196,7 @@ export async function bulkUploadEmployeeIdsAction(formData: FormData) {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
     if (!data || data.length === 0) {
         return { success: false, message: "File is empty." };
@@ -471,7 +471,8 @@ export async function bulkUploadClinicsAction(formData: FormData) {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    // Use `raw: false` to get the formatted text, not the underlying value.
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
      if (!data || data.length === 0) {
         return { success: false, message: "File is empty." };
