@@ -357,19 +357,22 @@ export const getInventoryFS = async () => {
   try {
     const inventoryCollection = collection(db, 'inventory');
     const snapshot = await getDocs(inventoryCollection);
-    const inventoryData: any = {};
     
-    snapshot.docs.forEach(doc => {
-      const items = doc.data().items || [];
-      inventoryData[doc.id] = items.map((item: any, index: number) => ({
-        ...item,
-        id: `${doc.id}-${index}` // Create a stable unique ID for each item
-      }));
+    // Each document in the 'inventory' collection is a clinic with item fields.
+    const inventoryData = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id, // The document ID is the clinic name (e.g., "clinic 8")
+        clinicName: doc.id,
+        "item name": data["item name"] || 'N/A',
+        "quantity": data["quantity"] || 0,
+        "approx price per unit": data["approx price per unit"] || 0,
+      };
     });
 
     return inventoryData;
   } catch (error) {
     console.error("Error fetching inventory data from Firestore:", error);
-    return {};
+    return []; // Return an empty array on error
   }
 };
