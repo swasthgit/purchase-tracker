@@ -115,7 +115,28 @@ const InventoryManager: React.FC = () => {
     });
   };
 
-  const filteredClinics = clinics.filter(clinic => clinic.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredClinics = clinics
+    .filter(clinic => clinic.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const st = searchTerm.toLowerCase();
+
+      const aIsExact = aName === st;
+      const bIsExact = bName === st;
+
+      const aStartsWith = aName.startsWith(st);
+      const bStartsWith = bName.startsWith(st);
+
+      if (aIsExact && !bIsExact) return -1;
+      if (!aIsExact && bIsExact) return 1;
+
+      if (aStartsWith && !bStartsWith) return -1;
+      if (!aStartsWith && bStartsWith) return 1;
+      
+      return a.name.localeCompare(b.name);
+    });
+
   const filteredItems = selectedClinic ? inventoryData.filter(item => item.clinicName === selectedClinic) : [];
 
   return (
