@@ -1,4 +1,4 @@
-// src/lib/actions.ts (Corrected)
+// src/lib/actions.ts
 "use server";
 
 import { z } from 'zod';
@@ -191,18 +191,26 @@ export async function bulkUploadEmployeeIdsAction(formData: FormData) {
   }
   
   try {
-    const textContent = await file.text();
-    const lines = textContent.split(/\r\n|\n|\r/).map(line => line.trim()).filter(line => line);
-    
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    if (!data || data.length === 0) {
+        return { success: false, message: "File is empty." };
+    }
+
+    const headerRow = data[0] as string[];
+    const header = headerRow[0]?.toString().toLowerCase().trim().replace(/_/g, " ");
+
     let idsToUpload: string[] = [];
 
-    if (lines.length > 0) {
-      const header = lines[0].toLowerCase().replace(/\s+/g, '');
-      if (header.includes('employeeid')) {
-         idsToUpload = lines.slice(1).map(id => id.trim()).filter(id => id);
-      } else {
-        idsToUpload = lines.map(id => id.trim()).filter(id => id);
-      }
+    if (header === 'employee id') {
+        idsToUpload = (data.slice(1) as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
+    } else {
+        idsToUpload = (data as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
     }
     
     if (idsToUpload.length === 0) {
@@ -457,28 +465,28 @@ export async function bulkUploadClinicsAction(formData: FormData) {
     return { success: false, message: 'No file uploaded.' };
   }
 
-  const allowedMimeTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-  const allowedExtensions = ['.csv', '.xls', '.xlsx'];
-  const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-
-  if (!allowedMimeTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
-     return { success: false, message: 'Invalid file type. Please upload a CSV or Excel file.' };
-  }
-
   try {
-    const textContent = await file.text();
-    const lines = textContent.split(/\r\n|\n|\r/).map(line => line.trim()).filter(line => line);
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+     if (!data || data.length === 0) {
+        return { success: false, message: "File is empty." };
+    }
+
+    const headerRow = data[0] as string[];
+    // Normalize header: convert to lower case, trim, and replace underscores/multiple spaces
+    const header = headerRow[0]?.toString().toLowerCase().trim().replace(/_/g, " ").replace(/\s+/, " ");
     
     let clinicsToUpload: string[] = [];
 
-    if (lines.length > 0) {
-      const header = lines[0].toLowerCase().replace(/\s+/g, '');
-      // Check for a header like 'clinicname' or 'clinic'
-      if (header.includes('clinic')) { 
-         clinicsToUpload = lines.slice(1).map(name => name.trim()).filter(name => name);
-      } else {
-        clinicsToUpload = lines.map(name => name.trim()).filter(name => name);
-      }
+    if (header === 'clinic' || header === 'clinic name') { 
+       clinicsToUpload = (data.slice(1) as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
+    } else {
+      clinicsToUpload = (data as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
     }
     
     if (clinicsToUpload.length === 0) {
@@ -495,6 +503,6 @@ export async function bulkUploadClinicsAction(formData: FormData) {
 
   } catch (error) {
     console.error('Error processing bulk clinic upload:', error);
-    return { success: false, message: 'Failed to process file. Ensure it is plain text.' };
+    return { success: false, message: 'Failed to process file. Ensure it is a valid CSV or Excel file.' };
   }
 }
