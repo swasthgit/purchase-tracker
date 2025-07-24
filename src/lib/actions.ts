@@ -19,6 +19,9 @@ import {
   updateItemDefinitionFS as dbUpdateItemDefinitionFS,
   removeItemDefinitionFS as dbRemoveItemDefinitionFS,
   getPurchasesByDateRangeFS,
+  addInventoryItemFS,
+  updateInventoryItemFS,
+  removeInventoryItemFS,
 } from '@/lib/data';
 import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData } from '@/types';
 import * as XLSX from 'xlsx';
@@ -418,4 +421,34 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
     console.error("Error generating purchase report:", error);
     return { success: false, message: "errorGeneratingReport" };
   }
+}
+
+// --- Inventory CRUD Actions ---
+const InventoryItemSchema = z.object({
+    clinicName: z.string().min(1, "Clinic name is required"),
+    "item name": z.string().min(1, "Item name is required"),
+    quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
+    "approx price per unit": z.coerce.number().min(0, "Price cannot be negative"),
+});
+
+export async function addInventoryItemAction(itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }) {
+    const validation = InventoryItemSchema.safeParse(itemData);
+    if (!validation.success) {
+        return { success: false, message: validation.error.errors[0].message };
+    }
+    return addInventoryItemFS(validation.data);
+}
+
+export async function updateInventoryItemAction(id: string, itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }) {
+    const validation = InventoryItemSchema.safeParse(itemData);
+    if (!validation.success) {
+        return { success: false, message: validation.error.errors[0].message };
+    }
+    // We only need the data for updating, not the clinicName which is the ID
+    const { "item name": itemName, quantity, "approx price per unit": approxPrice } = validation.data;
+    return updateInventoryItemFS(id, { "item name": itemName, quantity, "approx price per unit": approxPrice });
+}
+
+export async function removeInventoryItemAction(id: string) {
+    return removeInventoryItemFS(id);
 }

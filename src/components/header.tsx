@@ -30,6 +30,9 @@ export function Header() {
           <Button variant="ghost" asChild className="text-xs sm:text-sm px-2 sm:px-3">
             <Link href="/inventory">Inventory</Link>
           </Button>
+          <Button variant="ghost" asChild className="text-xs sm:text-sm px-2 sm:px-3">
+            <Link href="/inventory-admin">Inventory Admin</Link>
+          </Button>
         </nav>
         <div className="flex items-center space-x-2">
           <ThemeSwitcher />

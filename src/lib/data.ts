@@ -2,7 +2,7 @@
 import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta } from '@/types';
 import { db } from './firebase';
 import type { QuerySnapshot, Query } from 'firebase/firestore';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter, setDoc } from 'firebase/firestore';
 
 export const OTHER_ITEM_VALUE = "other_specify_item";
 
@@ -352,17 +352,16 @@ export const getLastNPurchasesFS = async (limitCount: number): Promise<PurchaseD
   }
 };
 
-// --- Inventory Management ---
+// --- Inventory Management (Read) ---
 export const getInventoryFS = async () => {
   try {
     const inventoryCollection = collection(db, 'inventory');
     const snapshot = await getDocs(inventoryCollection);
     
-    // Each document in the 'inventory' collection is a clinic with item fields.
     const inventoryData = snapshot.docs.map(doc => {
       const data = doc.data();
       return {
-        id: doc.id, // The document ID is the clinic name (e.g., "clinic 8")
+        id: doc.id,
         clinicName: doc.id,
         "item name": data["item name"] || 'N/A',
         "quantity": data["quantity"] || 0,
@@ -373,6 +372,46 @@ export const getInventoryFS = async () => {
     return inventoryData;
   } catch (error) {
     console.error("Error fetching inventory data from Firestore:", error);
-    return []; // Return an empty array on error
+    return [];
+  }
+};
+
+// --- Inventory Management (CUD) ---
+export const addInventoryItemFS = async (itemData: { clinicName: string; "item name": string; quantity: number; "approx price per unit": number; }): Promise<{success: boolean, message?: string}> => {
+  try {
+    const docRef = doc(db, 'inventory', itemData.clinicName);
+    // Use setDoc to create a new document with a specific ID (clinicName)
+    await setDoc(docRef, {
+        "item name": itemData["item name"],
+        quantity: itemData.quantity,
+        "approx price per unit": itemData["approx price per unit"],
+        createdAt: serverTimestamp()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error adding inventory item to Firestore:", error);
+    return { success: false, message: 'An error occurred while adding the item.' };
+  }
+};
+
+export const updateInventoryItemFS = async (id: string, itemData: { "item name": string; quantity: number; "approx price per unit": number; }): Promise<{success: boolean, message?: string}> => {
+  try {
+    const docRef = doc(db, 'inventory', id);
+    await updateDoc(docRef, { ...itemData, updatedAt: serverTimestamp() });
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating inventory item in Firestore:", error);
+    return { success: false, message: 'An error occurred while updating the item.' };
+  }
+};
+
+export const removeInventoryItemFS = async (id: string): Promise<{success: boolean, message?: string}> => {
+  try {
+    const docRef = doc(db, 'inventory', id);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (error) {
+    console.error("Error removing inventory item from Firestore:", error);
+    return { success: false, message: 'An error occurred while deleting the item.' };
   }
 };
