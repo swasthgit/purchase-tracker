@@ -135,7 +135,7 @@ export function PurchaseForm() {
   useEffect(() => {
     const newPreviews: Record<string, string | null> = {};
     fields.forEach((field, index) => {
-      const currentItemValue = watch(`items.${index}.itemName`);
+      const currentItemValue = watchedItems[index]?.itemName;
       if (currentItemValue && currentItemValue !== OTHER_ITEM_VALUE) {
         const def = itemDefinitionOptions.find(i => i.id === currentItemValue);
         newPreviews[field.id] = def ? def.imageUrl : null;
@@ -144,7 +144,7 @@ export function PurchaseForm() {
       }
     });
     setItemImagePreviews(newPreviews);
-  }, [fields, itemDefinitionOptions, watch]);
+  }, [fields, itemDefinitionOptions, watchedItems]);
 
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
