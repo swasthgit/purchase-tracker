@@ -1,4 +1,4 @@
-// src/components/purchase-form.tsx (Corrected)
+// src/components/purchase-form.tsx
 "use client";
 
 import React, { useState, useEffect, useTransition, useRef } from 'react';
@@ -107,13 +107,16 @@ export function PurchaseForm() {
   const watchedItems = watch('items');
 
   useEffect(() => {
-    const currentTotal = watchedItems.reduce((sum, item) => {
-      const quantity = Number(item.quantity) || 0;
-      const price = Number(item.price) || 0;
-      return sum + (quantity * price);
-    }, 0);
-    setTotalBill(currentTotal);
-  }, [watchedItems]);
+    const subscription = watch((value) => {
+      const currentTotal = (value.items || []).reduce((sum, item) => {
+        const quantity = Number(item?.quantity) || 0;
+        const price = Number(item?.price) || 0;
+        return sum + (quantity * price);
+      }, 0);
+      setTotalBill(currentTotal);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
 
   useEffect(() => {
     async function fetchData() {
@@ -291,10 +294,7 @@ export function PurchaseForm() {
         [t('userId'), submittedBillData.userId],
         [t('partnerName'), submittedBillData.partnerName],
         [t('userName'), submittedBillData.userName],
-        // --- FIX START ---
-        // Added a check to ensure uploadedFiles exists before accessing its properties.
         [t('uploadedFilesLabel'), submittedBillData.uploadedFiles && submittedBillData.uploadedFiles.length > 0 ? submittedBillData.uploadedFiles.map(f => f.name).join(', ') : t('noFileUploaded')],
-        // --- FIX END ---
         [],
         [t('totalBill'), submittedBillData.totalAmount?.toFixed(2) ?? '0.00']
       ];
@@ -425,13 +425,13 @@ export function PurchaseForm() {
                     <CardTitle className="text-lg">{t('itemDetails')} #{index + 1}</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                       <div>
                         <Label htmlFor={`items.${index}.clinicCode`}>{t('clinicCode')}</Label>
                         <Input id={`items.${index}.clinicCode`} {...register(`items.${index}.clinicCode`)} className="text-base md:text-sm" />
                         {errors.items?.[index]?.clinicCode && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.clinicCode?.message}</p>}
                       </div>
-                      <div className="flex flex-col">
+                      <div>
                         <Label htmlFor={`items.${index}.itemName`}>{t('itemName')}</Label>
                         <Controller
                           name={`items.${index}.itemName`}

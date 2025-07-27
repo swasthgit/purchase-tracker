@@ -1,4 +1,4 @@
-// next.config.ts (Corrected)
+// next.config.ts
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
