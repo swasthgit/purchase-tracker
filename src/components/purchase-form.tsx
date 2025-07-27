@@ -415,6 +415,10 @@ export function PurchaseForm() {
             <h3 className="text-xl font-semibold text-secondary">{t('itemsPurchased')}</h3>
             {fields.map((item, index) => {
               const currentItemValueForLogic = watch(`items.${index}.itemName`);
+              const itemQuantity = watch(`items.${index}.quantity`) || 0;
+              const itemPrice = watch(`items.${index}.price`) || 0;
+              const itemSubtotal = itemQuantity * itemPrice;
+
               return (
                 <Card key={item.id} className="p-4 space-y-4 bg-muted/30">
                   <CardHeader className="p-0 mb-2">
@@ -509,10 +513,13 @@ export function PurchaseForm() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="p-0 pt-2">
+                  <CardFooter className="p-0 pt-2 flex justify-between items-center">
                     <Button type="button" variant="destructive" size="sm" onClick={() => remove(index)} aria-label={t('removeItem')}>
                       <Trash2 className="h-4 w-4 mr-1" /> {t('removeItem')}
                     </Button>
+                    <div className="text-sm font-semibold">
+                      {t('itemLineTotal')}: <span className="text-primary">{itemSubtotal.toFixed(2)}</span>
+                    </div>
                   </CardFooter>
                 </Card>
               )
