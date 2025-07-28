@@ -190,10 +190,11 @@ export function PurchaseForm() {
   };
 
   const duplicateLastItem = () => {
-    if (fields.length > 0) {
-      const lastItem = fields[fields.length - 1];
+    const allItems = getValues('items');
+    if (allItems && allItems.length > 0) {
+      const lastItem = allItems[allItems.length - 1];
       const newItemId = crypto.randomUUID();
-      append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay });
+      append({ ...lastItem, id: newItemId });
     }
   };
 
