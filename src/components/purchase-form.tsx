@@ -81,8 +81,6 @@ export function PurchaseForm() {
   const [filePreviews, setFilePreviews] = useState<FileWithPreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [itemImagePreviews, setItemImagePreviews] = useState<Record<string, string | null>>({});
-
   const [totalBill, setTotalBill] = useState(0);
   const [showBillPreviewDialog, setShowBillPreviewDialog] = useState(false);
   const [submittedBillData, setSubmittedBillData] = useState<PurchaseData | null>(null);
@@ -135,20 +133,6 @@ export function PurchaseForm() {
     fetchData();
   }, [t, toast]);
 
-  useEffect(() => {
-    const newPreviews: Record<string, string | null> = {};
-    fields.forEach((field, index) => {
-      const currentItemValue = watchedItems[index]?.itemName;
-      if (currentItemValue && currentItemValue !== OTHER_ITEM_VALUE) {
-        const def = itemDefinitionOptions.find(i => i.id === currentItemValue);
-        newPreviews[field.id] = def ? def.imageUrl : null;
-      } else {
-        newPreviews[field.id] = null;
-      }
-    });
-    setItemImagePreviews(newPreviews);
-  }, [fields, itemDefinitionOptions, watchedItems]);
-
   const onSubmit = (data: PurchaseFormValues) => {
     startTransition(async () => {
       toast({ title: t('submittingPurchase') });
@@ -187,7 +171,6 @@ export function PurchaseForm() {
         setShowBillPreviewDialog(true);
         reset();
         setFilePreviews([]);
-        setItemImagePreviews({});
         setTotalBill(0);
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
@@ -204,7 +187,6 @@ export function PurchaseForm() {
   const addNewItem = () => {
     const newItemId = crypto.randomUUID();
     append({ id: newItemId, clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '', itemNameDisplay: '' });
-    setItemImagePreviews(prev => ({ ...prev, [newItemId]: null }));
   };
 
   const duplicateLastItem = () => {
@@ -212,8 +194,6 @@ export function PurchaseForm() {
       const lastItem = fields[fields.length - 1];
       const newItemId = crypto.randomUUID();
       append({ ...lastItem, id: newItemId, itemNameDisplay: lastItem.itemNameDisplay });
-      const lastItemDef = itemDefinitionOptions.find(i => i.id === lastItem.itemName && i.id !== OTHER_ITEM_VALUE);
-      setItemImagePreviews(prev => ({ ...prev, [newItemId]: lastItemDef ? lastItemDef.imageUrl : null }));
     }
   };
 
@@ -260,19 +240,14 @@ export function PurchaseForm() {
     setFilePreviews(updatedPreviews);
   };
 
-  const handleItemNameChange = (fieldId: string, selectedItemId: string, index: number) => {
+  const handleItemNameChange = (selectedItemId: string, index: number) => {
     setValue(`items.${index}.itemName`, selectedItemId);
     if (selectedItemId !== OTHER_ITEM_VALUE) {
       setValue(`items.${index}.customItemName`, '');
       const selectedItemDefinition = itemDefinitionOptions.find(i => i.id === selectedItemId);
       setValue(`items.${index}.itemNameDisplay`, selectedItemDefinition?.name || selectedItemId);
-      setItemImagePreviews(prev => ({
-        ...prev,
-        [fieldId]: selectedItemDefinition ? selectedItemDefinition.imageUrl : null,
-      }));
     } else {
       setValue(`items.${index}.itemNameDisplay`, watch(`items.${index}.customItemName`) || t('other'));
-      setItemImagePreviews(prev => ({ ...prev, [fieldId]: null }));
     }
   };
 
@@ -418,6 +393,7 @@ export function PurchaseForm() {
               const itemQuantity = watch(`items.${index}.quantity`) || 0;
               const itemPrice = watch(`items.${index}.price`) || 0;
               const itemSubtotal = itemQuantity * itemPrice;
+              const itemDef = itemDefinitionOptions.find(i => i.id === currentItemValueForLogic && i.id !== OTHER_ITEM_VALUE);
 
               return (
                 <Card key={item.id} className="p-4 space-y-4 bg-muted/30">
@@ -431,14 +407,14 @@ export function PurchaseForm() {
                         <Input id={`items.${index}.clinicCode`} {...register(`items.${index}.clinicCode`)} className="text-base md:text-sm" />
                         {errors.items?.[index]?.clinicCode && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.clinicCode?.message}</p>}
                       </div>
-                      <div>
+                      <div className="flex flex-col gap-2">
                         <Label htmlFor={`items.${index}.itemName`}>{t('itemName')}</Label>
                         <Controller
                           name={`items.${index}.itemName`}
                           control={control}
                           render={({ field }) => (
                             <Select
-                              onValueChange={(value) => handleItemNameChange(item.id, value, index)}
+                              onValueChange={(value) => handleItemNameChange(value, index)}
                               value={field.value}
                               disabled={isLoadingData || translatedItemDefinitions.length === 0}
                             >
@@ -472,10 +448,10 @@ export function PurchaseForm() {
                             </Select>
                           )}
                         />
-                        {currentItemValueForLogic !== OTHER_ITEM_VALUE && itemImagePreviews[item.id] && (
+                         {itemDef && itemDef.imageUrl && (
                           <div className="mt-2">
                             <Image
-                              src={itemImagePreviews[item.id]!}
+                              src={itemDef.imageUrl}
                               alt="Selected item preview"
                               width={64}
                               height={64}
