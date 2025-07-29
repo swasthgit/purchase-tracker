@@ -373,7 +373,7 @@ export const getInventoryFS = async (): Promise<InventoryItem[]> => {
           "approx price per unit": item["approx price per unit"] || 0,
         }));
       }
-      return []; // Return empty array if no items field
+      return []; // Return empty array if no items field or items is not an array
     });
 
     return inventoryData;
@@ -388,6 +388,7 @@ export const getClinicsFS = async (): Promise<{id: string, name: string}[]> => {
   try {
     const inventoryCollection = collection(db, 'inventory');
     const snapshot = await getDocs(inventoryCollection);
+    // The document ID is the clinic name. We return it for both id and name.
     return snapshot.docs.map(doc => ({ id: doc.id, name: doc.id }));
   } catch (error) {
     console.error("Error fetching clinic names from Firestore:", error);
@@ -410,7 +411,7 @@ export const addInventoryItemFS = async (itemData: Omit<InventoryItem, 'id'>): P
     return { success: true };
   } catch (error: any) {
     // If the document does not exist, Firestore throws an error. We can catch it and create the document.
-    if (error.code === 'not-found') {
+    if (error.code === 'not-found' || error.message.includes('No document to update')) {
         try {
             const clinicDocRef = doc(db, 'inventory', itemData.clinicName);
             const newItem = {
