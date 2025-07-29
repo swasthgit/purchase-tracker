@@ -167,7 +167,7 @@ const InventoryManager: React.FC = () => {
                              </div>
                         </div>
                         {filteredClinics.map(clinic => (
-                            <SelectItem key={clinic.id} value={clinic.id}>{clinic.name}</SelectItem>
+                            <SelectItem key={clinic.id} value={clinic.name}>{clinic.name}</SelectItem>
                         ))}
                         {filteredClinics.length === 0 && <div className="text-center text-sm text-muted-foreground p-2">No clinics found.</div>}
                     </SelectContent>
