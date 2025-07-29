@@ -105,16 +105,13 @@ export function PurchaseForm() {
   const watchedItems = watch('items');
 
   useEffect(() => {
-    const subscription = watch((value) => {
-      const currentTotal = (value.items || []).reduce((sum, item) => {
-        const quantity = Number(item?.quantity) || 0;
-        const price = Number(item?.price) || 0;
-        return sum + (quantity * price);
-      }, 0);
-      setTotalBill(currentTotal);
-    });
-    return () => subscription.unsubscribe();
-  }, [watch]);
+    const currentTotal = (watchedItems || []).reduce((sum, item) => {
+      const quantity = Number(item?.quantity) || 0;
+      const price = Number(item?.price) || 0;
+      return sum + (quantity * price);
+    }, 0);
+    setTotalBill(currentTotal);
+  }, [watchedItems]);
 
   useEffect(() => {
     async function fetchData() {
