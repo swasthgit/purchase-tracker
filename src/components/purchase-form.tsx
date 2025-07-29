@@ -110,7 +110,9 @@ export function PurchaseForm() {
       const price = Number(item?.price) || 0;
       return sum + (quantity * price);
     }, 0);
-    setTotalBill(currentTotal);
+    // FIX: Round to 2 decimal places to avoid floating point issues
+    const roundedTotal = Math.round(currentTotal * 100) / 100;
+    setTotalBill(roundedTotal);
   }, [watchedItems]);
 
   useEffect(() => {
