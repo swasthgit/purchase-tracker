@@ -359,23 +359,21 @@ export const getInventoryFS = async (): Promise<InventoryItem[]> => {
   try {
     const inventoryCollection = collection(db, 'inventory');
     const snapshot = await getDocs(inventoryCollection);
-    
-    const inventoryData: InventoryItem[] = [];
-    snapshot.docs.forEach(doc => {
+
+    const inventoryData: InventoryItem[] = snapshot.docs.flatMap(doc => {
       const clinicData = doc.data();
       const clinicName = doc.id;
       
       if (Array.isArray(clinicData.items)) {
-        clinicData.items.forEach((item: any) => {
-          inventoryData.push({
-            id: item.id,
-            clinicName: clinicName,
-            "item name": item["item name"] || 'N/A',
-            quantity: item.quantity || 0,
-            "approx price per unit": item["approx price per unit"] || 0,
-          });
-        });
+        return clinicData.items.map((item: any) => ({
+          id: item.id,
+          clinicName: clinicName,
+          "item name": item["item name"] || 'N/A',
+          quantity: item.quantity || 0,
+          "approx price per unit": item["approx price per unit"] || 0,
+        }));
       }
+      return []; // Return empty array if no items field
     });
 
     return inventoryData;
