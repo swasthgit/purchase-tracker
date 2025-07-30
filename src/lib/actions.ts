@@ -310,17 +310,18 @@ export async function addInventoryItemAction(itemData: z.infer<typeof InventoryI
 }
 
 export async function updateInventoryItemAction(itemData: z.infer<typeof InventoryItemPayloadSchema>) {
-    // The schema already handles the potential absence of 'id' for new items.
-    // For updates, we need to ensure 'id' is present. We can refine the schema or check explicitly.
-    // Explicit check is simpler here as the schema is used for both add and update.
-    if (!itemData.id) {
-        return { success: false, message: "Item ID is required for updates." };
-    }
     const validation = InventoryItemPayloadSchema.safeParse(itemData);
     if (!validation.success) {
         return { success: false, message: validation.error.errors[0].message };
     }
-    return updateInventoryItemFS(validation.data);
+
+    // After validation, we explicitly check for the ID required for an update.
+    if (!validation.data.id) {
+        return { success: false, message: "Item ID is required for updates." };
+    }
+
+    // Now TypeScript knows that validation.data has an ID.
+    return updateInventoryItemFS(validation.data as InventoryItem);
 }
 
 export async function removeInventoryItemAction(clinicName: string, itemId: string) {
