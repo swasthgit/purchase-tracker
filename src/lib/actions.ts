@@ -30,7 +30,7 @@ import * as XLSX from 'xlsx';
 
 const MAX_TOTAL_FILES = 50;
 const MAX_FILE_SIZE_PER_FILE = 20 * 1024 * 1024; // 20MB per file
-const ALLOWED_FILE_TYPES_PURCHASE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+const ALLOWED_FILE_TYPES_PURCHASE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
 const ALLOWED_IMAGE_TYPES_ITEM_DEF = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 
@@ -54,140 +54,101 @@ const PurchaseItemSchema = z.object({
 
 const FileSchema = z
   .custom<File>()
-  .refine((file) => file.size <= MAX_FILE_SIZE_PER_FILE, `Max file size is ${MAX_FILE_SIZE_PER_FILE / (1024 * 1024)}MB.`)
+  .refine((file) => file.size <= MAX_FILE_SIZE_PER_FILE, `Max file size is 20MB per file.`)
   .refine(
     (file) => ALLOWED_FILE_TYPES_PURCHASE.includes(file.type),
-    "Only JPG, JPEG, PNG, GIF, WEBP, PDF files are allowed."
+    "Only JPG, PNG, GIF, WEBP, PDF, and Excel files are allowed."
   );
 
-const PurchaseFormSchema = z.object({
+const FormSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  partnerName: z.string().min(1, "Partner name is required"), 
-  userName: z.string().min(1, "User name is required"),
+  partnerName: z.string().min(1, "Partner name is required"),
+  userName: z.string().min(1, "User name is required").max(100, "User name too long"),
   items: z.array(PurchaseItemSchema).min(1, "At least one item is required"),
-  uploadedFiles: z.array(FileSchema).max(MAX_TOTAL_FILES, `You can upload a maximum of ${MAX_TOTAL_FILES} files.`).optional(),
+  uploadedFiles: z.array(FileSchema)
+    .max(MAX_TOTAL_FILES, `You can upload a maximum of ${MAX_TOTAL_FILES} files.`)
+    .optional()
+    .default([]),
 });
 
 
+const uploadFileToStorage = async (file: File, folder: string): Promise<UploadedFileMeta> => {
+    const uniqueFileName = `${Date.now()}-${file.name}`;
+    const fileRef = storageRef(storage, `${folder}/${uniqueFileName}`);
+    await uploadBytes(fileRef, file);
+    const downloadURL = await getDownloadURL(fileRef);
+    return {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      url: downloadURL
+    };
+};
+
 export async function submitPurchase(prevState: any, formData: FormData) {
+  const parsedData = FormSchema.safeParse({
+    userId: formData.get('userId'),
+    partnerName: formData.get('partnerName'),
+    userName: formData.get('userName'),
+    items: JSON.parse(formData.get('items') as string),
+    uploadedFiles: formData.getAll('uploadedFiles').filter(f => (f as File).size > 0),
+  });
+
+  if (!parsedData.success) {
+    return { success: false, message: 'Invalid form data.', errors: parsedData.error.flatten().fieldErrors };
+  }
+
+  const { userId, partnerName, userName, items, uploadedFiles } = parsedData.data;
+
   try {
-    const rawItems = formData.get('items') as string;
-    const itemsForValidation = JSON.parse(rawItems).map((item: any) => ({
-        id: item.id,
-        clinicCode: item.clinicCode,
-        quantity: item.quantity,
-        price: item.price,
-        itemName: item.itemName,
-        customItemName: item.customItemName,
-        itemNameDisplay: item.itemNameDisplay, 
-    })) as PurchaseItem[];
-
-    const files: File[] = [];
-    for (let i = 0; i < MAX_TOTAL_FILES; i++) {
-      const file = formData.get(`uploadedFiles[${i}]`) as File | null;
-      if (file) {
-        files.push(file);
-      } else {
-        break; 
-      }
-    }
-    
-    const validatedFields = PurchaseFormSchema.safeParse({
-      userId: formData.get('userId'),
-      partnerName: formData.get('partnerName'),
-      userName: formData.get('userName'),
-      items: itemsForValidation,
-      uploadedFiles: files.length > 0 ? files : undefined,
-    });
-
-    if (!validatedFields.success) {
-      console.error("Validation Errors:", validatedFields.error.flatten().fieldErrors);
-      return {
-        success: false,
-        message: "Validation failed. Please check your inputs.",
-        errors: validatedFields.error.flatten().fieldErrors,
-      };
-    }
-
-    const { userId, partnerName, userName, items, uploadedFiles } = validatedFields.data;
-    const uploadedFileUrls: UploadedFileMeta[] = [];
-
+    const uploadedFileMetas: UploadedFileMeta[] = [];
     if (uploadedFiles && uploadedFiles.length > 0) {
       for (const file of uploadedFiles) {
-        try {
-          const sRef = storageRef(storage, `purchase_uploads/${userId}/${Date.now()}_${file.name}`);
-          const snapshot = await uploadBytes(sRef, file);
-          const downloadUrl = await getDownloadURL(snapshot.ref);
-          uploadedFileUrls.push({ name: file.name, type: file.type, url: downloadUrl, size: file.size });
-        } catch (uploadError) {
-          console.error("Error uploading file to Firebase Storage:", uploadError);
-          return { success: false, message: "File upload failed.", errors: { uploadedFiles: "File upload failed for " + file.name } };
+        if (file instanceof File) {
+            const meta = await uploadFileToStorage(file, 'purchase_documents');
+            uploadedFileMetas.push(meta);
         }
       }
     }
-
+    
     const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
-    const purchaseData: Omit<PurchaseData, 'id'> = { // Use Omit because id is added by Firestore
+    const docRef = await addDoc(collection(db, 'purchases'), {
       userId,
-      partnerName, 
+      partnerName,
       userName,
-      items: items.map(item => ({ 
-        id: item.id,
-        clinicCode: item.clinicCode,
-        quantity: item.quantity,
-        price: item.price,
-        itemName: item.itemName, 
-        customItemName: item.customItemName,
-        itemNameDisplay: item.itemNameDisplay, 
-      })),
-      uploadedFiles: uploadedFileUrls,
+      items,
+      uploadedFiles: uploadedFileMetas,
       createdAt: serverTimestamp(),
-      totalAmount: totalAmount,
-    };
-
-    const docRef = await addDoc(collection(db, 'purchases'), purchaseData);
-
-    const dataForBillPreview = {
-        ...validatedFields.data,
+      totalAmount,
+    });
+    
+    const returnData = {
         id: docRef.id,
-        uploadedFiles: uploadedFileUrls,
-        totalAmount: totalAmount,
+        userId,
+        partnerName,
+        userName,
+        items,
+        uploadedFiles: uploadedFileMetas,
+        totalAmount,
     };
 
-    return { success: true, message: "billGeneratedSuccess", data: dataForBillPreview };
+    return { success: true, message: 'Purchase submitted successfully.', data: returnData };
   } catch (error) {
     console.error("Error submitting purchase:", error);
-    return { success: false, message: "errorOccurred" };
+    return { success: false, message: 'Failed to submit purchase.' };
   }
 }
 
-// --- Employee ID Management Actions ---
-export async function addEmployeeIdAction(id: string) {
-  if (!id || id.trim() === "") {
-    return { success: false, message: "Employee ID cannot be empty." };
-  }
-  return dbAddEmployeeIdFS(id.trim());
-}
+// --- Admin Actions ---
 
-export async function removeEmployeeIdAction(id: string) {
-  return dbRemoveEmployeeIdFS(id);
-}
+export async function addEmployeeIdAction(id: string) { return dbAddEmployeeIdFS(id); }
+export async function removeEmployeeIdAction(id: string) { return dbRemoveEmployeeIdFS(id); }
 
 export async function bulkUploadEmployeeIdsAction(formData: FormData) {
   const file = formData.get('employeeIdFile') as File | null;
-
   if (!file) {
     return { success: false, message: 'No file uploaded.' };
-  }
-
-  const allowedMimeTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-  const allowedExtensions = ['.csv', '.xls', '.xlsx'];
-  
-  const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-
-  if (!allowedMimeTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
-     return { success: false, message: 'Invalid file type. Please upload a CSV or Excel file.' };
   }
   
   try {
@@ -198,244 +159,146 @@ export async function bulkUploadEmployeeIdsAction(formData: FormData) {
     const sheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
-    if (!data || data.length === 0) {
+     if (!data || data.length === 0) {
         return { success: false, message: "File is empty." };
     }
-
+    
     const headerRow = data[0] as string[];
-    const header = headerRow[0]?.toString().toLowerCase().trim().replace(/_/g, " ");
+    const header = headerRow[0]?.toString().toLowerCase().trim().replace(/_/g, " ").replace(/\s+/, " ");
 
     let idsToUpload: string[] = [];
-
     if (header === 'employee id') {
-        idsToUpload = (data.slice(1) as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
+       idsToUpload = (data.slice(1) as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
     } else {
-        idsToUpload = (data as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
+       idsToUpload = (data as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
     }
-    
+
     if (idsToUpload.length === 0) {
-      return { success: false, message: 'No valid IDs found in the file or file format incorrect. Ensure header is "employee id" or "employee_id" or no header with one ID per line.' };
+      return { success: false, message: 'No valid employee IDs found in the file. Ensure the header is "employee_id" or "employee id" or provide a list of IDs.' };
     }
 
     const result = await dbBulkAddEmployeeIdsFS(idsToUpload);
-    
     let message = `Successfully added ${result.count} new IDs.`;
     if (result.errors.length > 0) {
       message += ` ${result.errors.length} IDs already existed or were duplicates/invalid: ${result.errors.slice(0,5).join(', ')}${result.errors.length > 5 ? '...' : ''}.`;
     }
     return { success: true, message };
-
   } catch (error) {
     console.error('Error processing bulk upload:', error);
-    return { success: false, message: 'Failed to process file. Ensure it is plain text (CSV/Excel saved as CSV).' };
+    return { success: false, message: 'Failed to process file. Ensure it is a valid CSV or Excel file.' };
   }
 }
 
+export async function addPrinterNameAction(name: string) { return dbAddPrinterNameFS(name); }
+export async function removePrinterNameAction(id: string) { return dbRemovePrinterNameFS(id); }
 
-// --- Printer Name Management Actions ---
-export async function addPrinterNameAction(name: string) {
-  if (!name || name.trim() === "") {
-    return { success: false, message: "Printer name cannot be empty." };
-  }
-  return dbAddPrinterNameFS(name.trim());
-}
+export async function addPartnerAction(name: string) { return dbAddPartnerFS(name); }
+export async function updatePartnerAction(id: string, newName: string) { return dbUpdatePartnerFS(id, newName); }
+export async function removePartnerAction(id: string) { return dbRemovePartnerFS(id); }
 
-export async function removePrinterNameAction(id: string) {
-  return dbRemovePrinterNameFS(id);
-}
 
-// --- Partner Management Actions ---
-const PartnerNameSchema = z.string().min(1, "Partner name cannot be empty.").max(100, "Partner name too long.");
-
-export async function addPartnerAction(name: string) {
-  const validation = PartnerNameSchema.safeParse(name);
-  if (!validation.success) {
-    return { success: false, message: validation.error.errors[0].message };
-  }
-  return dbAddPartnerFS(validation.data);
-}
-
-export async function updatePartnerAction(id: string, name: string) {
-  const validation = PartnerNameSchema.safeParse(name);
-  if (!validation.success) {
-    return { success: false, message: validation.error.errors[0].message };
-  }
-  return dbUpdatePartnerFS(id, validation.data);
-}
-
-export async function removePartnerAction(id: string) {
-  return dbRemovePartnerFS(id);
-}
-
-// --- Item Definition Management Actions ---
-const ItemDefinitionSchema = z.object({
-  name: z.string().min(1, "Item name is required.").max(100, "Item name too long."),
-  imageUrl: z.string().url("Image URL must be a valid URL.").min(1, "Image URL is required."),
-  dataAiHint: z.string().max(50, "AI hint too long.").optional(),
+const ItemDefinitionPayloadSchema = z.object({
+  name: z.string().min(1, "Item name is required."),
+  imageUrl: z.string().url("A valid URL for the image is required."),
+  dataAiHint: z.string().optional(),
 });
 
-export async function addItemDefinitionAction(itemData: { name: string; imageUrl: string; dataAiHint?: string }) {
-  const validation = ItemDefinitionSchema.safeParse(itemData);
+export async function addItemDefinitionAction(itemData: z.infer<typeof ItemDefinitionPayloadSchema>) {
+  const validation = ItemDefinitionPayloadSchema.safeParse(itemData);
   if (!validation.success) {
-    const fieldErrors = validation.error.flatten().fieldErrors;
-    const message = fieldErrors.name?.[0] || fieldErrors.imageUrl?.[0] || fieldErrors.dataAiHint?.[0] || "Validation failed.";
-    return { success: false, message };
+      return { success: false, message: validation.error.errors[0].message };
   }
   return dbAddItemDefinitionFS(validation.data);
 }
 
-export async function updateItemDefinitionAction(id: string, itemData: { name?: string; imageUrl?: string; dataAiHint?: string }) {
-  const partialSchema = ItemDefinitionSchema.partial().refine(data => Object.keys(data).length > 0, {message: "At least one field must be provided for update."});
-  const validation = partialSchema.safeParse(itemData);
+export async function updateItemDefinitionAction(id: string, itemData: z.infer<typeof ItemDefinitionPayloadSchema>) {
+  const validation = ItemDefinitionPayloadSchema.safeParse(itemData);
   if (!validation.success) {
-     const fieldErrors = validation.error.flatten().fieldErrors;
-     const message = fieldErrors.name?.[0] || fieldErrors.imageUrl?.[0] || fieldErrors.dataAiHint?.[0] || "Validation failed.";
-     return { success: false, message };
+      return { success: false, message: validation.error.errors[0].message };
   }
-  if (itemData.name !== undefined && itemData.name.trim() === "") {
-    return { success: false, message: "Item name cannot be empty." };
-  }
-  if (itemData.imageUrl !== undefined) {
-    if (itemData.imageUrl.trim() === "") {
-      return { success: false, message: "Image URL cannot be empty." };
-    }
-    const urlValidation = z.string().url().safeParse(itemData.imageUrl);
-    if (!urlValidation.success) {
-      return { success: false, message: "Invalid Image URL format."};
-    }
-  }
-
-  const updatePayload: any = {};
-  if (itemData.name !== undefined) updatePayload.name = itemData.name.trim();
-  if (itemData.imageUrl !== undefined) updatePayload.imageUrl = itemData.imageUrl.trim();
-  if (itemData.dataAiHint !== undefined) updatePayload.dataAiHint = itemData.dataAiHint.trim();
-
-  return dbUpdateItemDefinitionFS(id, updatePayload);
+  return dbUpdateItemDefinitionFS(id, validation.data);
 }
 
-export async function removeItemDefinitionAction(id: string) {
-  return dbRemoveItemDefinitionFS(id);
-}
+export async function removeItemDefinitionAction(id: string) { return dbRemoveItemDefinitionFS(id); }
 
-// --- Item Image Upload Action (for Item Definitions) ---
-export async function uploadItemImageAction(formData: FormData): Promise<{success: boolean, url?: string, message?: string}> {
-  const imageFile = formData.get('itemImage') as File | null;
-
-  if (!imageFile) {
-    return { success: false, message: "No image file provided." };
+export async function uploadItemImageAction(formData: FormData) {
+  const file = formData.get('itemImage') as File | null;
+  if (!file) {
+    return { success: false, message: 'No image file uploaded.' };
   }
 
-  if (!ALLOWED_IMAGE_TYPES_ITEM_DEF.includes(imageFile.type)) {
-    return { success: false, message: "Invalid file type. Please upload an image (JPEG, PNG, GIF, WEBP)." };
-  }
-  if (imageFile.size > MAX_FILE_SIZE_PER_FILE) { 
-    return { success: false, message: `File is too large. Max size is ${MAX_FILE_SIZE_PER_FILE / (1024*1024)}MB.`};
+  // Validate file type
+  if (!ALLOWED_IMAGE_TYPES_ITEM_DEF.includes(file.type)) {
+    return { success: false, message: 'Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.' };
   }
 
   try {
-    const sRef = storageRef(storage, `item_definition_images/${Date.now()}_${imageFile.name}`);
-    const snapshot = await uploadBytes(sRef, imageFile);
-    const downloadUrl = await getDownloadURL(snapshot.ref);
-    return { success: true, url: downloadUrl };
+    const uploadedFileMeta = await uploadFileToStorage(file, 'item_images');
+    return { success: true, url: uploadedFileMeta.url };
   } catch (error) {
-    console.error("Error uploading item image to Firebase Storage:", error);
-    const errorMessage = error instanceof Error ? error.message : "Firebase Storage upload failed.";
-    return { success: false, message: errorMessage };
+    console.error("Error uploading item image:", error);
+    return { success: false, message: 'Failed to upload image to storage.' };
   }
 }
-
-// --- Admin Download Purchase Data by Time Frame ---
-const DownloadReportSchema = z.object({
-  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid start date" }),
-  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid end date" }),
-}).refine(data => new Date(data.startDate) <= new Date(data.endDate), {
-  message: "Start date cannot be after end date",
-  path: ["endDate"],
-});
 
 export async function downloadPurchasesByDateRangeAction(prevState: any, formData: FormData) {
-  const validatedFields = DownloadReportSchema.safeParse({
-    startDate: formData.get('startDate'),
-    endDate: formData.get('endDate'),
-  });
+  const startDateStr = formData.get('startDate') as string;
+  const endDateStr = formData.get('endDate') as string;
 
-  if (!validatedFields.success) {
-    return {
-      success: false,
-      message: "Invalid date range.",
-      errors: validatedFields.error.flatten().fieldErrors,
-    };
+  if (!startDateStr || !endDateStr) {
+    return { success: false, message: 'invalidDates' };
   }
 
-  const { startDate, endDate } = validatedFields.data;
+  const startDate = new Date(startDateStr);
+  const endDate = new Date(endDateStr);
 
   try {
-    const purchases = await getPurchasesByDateRangeFS(new Date(startDate), new Date(endDate));
-
+    const purchases = await getPurchasesByDateRangeFS(startDate, endDate);
     if (purchases.length === 0) {
-      return { success: false, message: "noDataFoundForDateRange" };
+      return { success: false, message: 'noDataFoundForDateRange' };
     }
 
-    const worksheetData = purchases.flatMap(purchase => 
-      purchase.items.map(item => ({
-        'Purchase ID': purchase.id,
-        'User ID': purchase.userId,
-        'Partner Name': purchase.partnerName,
-        'User Name': purchase.userName,
-        'Purchase Date': purchase.createdAt instanceof Timestamp ? purchase.createdAt.toDate().toLocaleDateString() : String(purchase.createdAt),
-        'Clinic Code': item.clinicCode,
-        'Item Name': item.itemNameDisplay,
-        'Quantity': item.quantity,
-        'Price Per Unit': item.price,
-        'Line Total': item.quantity * item.price,
-        'Uploaded Files Count': purchase.uploadedFiles?.length || 0,
-      }))
+    const reportData = purchases.flatMap(p => 
+        p.items.map(item => ({
+            "Purchase ID": p.id,
+            "Purchase Date": p.createdAt.toDate ? p.createdAt.toDate().toISOString().split('T')[0] : 'N/A',
+            "User ID": p.userId,
+            "User Name": p.userName,
+            "Partner Name": p.partnerName,
+            "Clinic Code": item.clinicCode,
+            "Item Name": item.itemNameDisplay,
+            "Quantity": item.quantity,
+            "Price per Unit": item.price,
+            "Line Total": item.quantity * item.price,
+            "Files": p.uploadedFiles?.map(f => f.url).join(', ') ?? 'None'
+        }))
     );
     
-    const summaryRow = {
-        'Purchase ID': 'TOTAL',
-        'User ID': '',
-        'Partner Name': '',
-        'User Name': '',
-        'Purchase Date': '',
-        'Clinic Code': '',
-        'Item Name': '',
-        'Quantity': null,
-        'Price Per Unit': null,
-        'Line Total': purchases.reduce((sum, p) => sum + (p.totalAmount || 0), 0),
-        'Uploaded Files Count': null,
-    };
-    worksheetData.push(summaryRow as any);
-
-
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Purchases");
-    
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const base64 = Buffer.from(excelBuffer).toString('base64');
-
+    const ws = XLSX.utils.json_to_sheet(reportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Purchases Report");
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
 
     return { 
         success: true, 
-        message: "reportGeneratedSuccess",
-        excelData: base64,
-        fileName: `PurchaseReport_${startDate}_to_${endDate}.xlsx`
+        message: 'reportGeneratedSuccess', 
+        excelData: excelBuffer,
+        fileName: `Purchases_${startDate.toISOString().split('T')[0]}_to_${endDate.toISOString().split('T')[0]}.xlsx`
     };
 
   } catch (error) {
     console.error("Error generating purchase report:", error);
-    return { success: false, message: "errorGeneratingReport" };
+    return { success: false, message: 'errorGeneratingReport' };
   }
 }
 
-// --- Inventory CRUD Actions ---
+// --- Inventory Actions ---
 const InventoryItemPayloadSchema = z.object({
-    clinicName: z.string().min(1, "Clinic name is required"),
-    id: z.string().optional(), // For updates
-    "item name": z.string().min(1, "Item name is required"),
-    quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
-    "approx price per unit": z.coerce.number().min(0, "Price cannot be negative"),
+  clinicName: z.string().min(1, "Clinic name is required"),
+  id: z.string().optional(), // For updates, potentially undefined for new items
+  "item name": z.string().min(1, "Item name is required"),
+  quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
+  "approx price per unit": z.coerce.number().min(0, "Price cannot be negative"),
 });
 
 export async function addInventoryItemAction(itemData: z.infer<typeof InventoryItemPayloadSchema>) {
@@ -447,6 +310,9 @@ export async function addInventoryItemAction(itemData: z.infer<typeof InventoryI
 }
 
 export async function updateInventoryItemAction(itemData: z.infer<typeof InventoryItemPayloadSchema>) {
+    // The schema already handles the potential absence of 'id' for new items.
+    // For updates, we need to ensure 'id' is present. We can refine the schema or check explicitly.
+    // Explicit check is simpler here as the schema is used for both add and update.
     if (!itemData.id) {
         return { success: false, message: "Item ID is required for updates." };
     }
