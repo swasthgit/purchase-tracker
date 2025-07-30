@@ -103,17 +103,16 @@ export function PurchaseForm() {
   });
 
   const watchedItems = watch('items');
-
+  
   useEffect(() => {
     const currentTotal = (watchedItems || []).reduce((sum, item) => {
       const quantity = Number(item?.quantity) || 0;
       const price = Number(item?.price) || 0;
       return sum + (quantity * price);
     }, 0);
-    // FIX: Round to 2 decimal places to avoid floating point issues
     const roundedTotal = Math.round(currentTotal * 100) / 100;
     setTotalBill(roundedTotal);
-  }, [watchedItems]);
+  }, [watchedItems, JSON.stringify(watchedItems)]); // FIX: Add stable dependency to ensure recalculation
 
   useEffect(() => {
     async function fetchData() {
