@@ -21,6 +21,7 @@ import Image from 'next/image';
 import { BillPreview } from '@/components/bill-preview';
 import * as XLSX from 'xlsx';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Textarea } from '@/components/ui/textarea';
 
 const MAX_TOTAL_FILES = 50;
 const MAX_FILE_SIZE_PER_FILE = 20 * 1024 * 1024; // 20MB
@@ -61,6 +62,7 @@ const FormSchema = z.object({
     .max(MAX_TOTAL_FILES, `You can upload a maximum of ${MAX_TOTAL_FILES} files.`)
     .optional()
     .default([]),
+  feedback: z.string().optional(),
 });
 
 export type PurchaseFormValues = z.infer<typeof FormSchema>;
@@ -94,6 +96,7 @@ export function PurchaseForm() {
       userName: '',
       items: [{ id: crypto.randomUUID(), clinicCode: '', quantity: 1, price: 0.01, itemName: '', customItemName: '', itemNameDisplay: '' }],
       uploadedFiles: [],
+      feedback: '',
     },
   });
 
@@ -112,7 +115,7 @@ export function PurchaseForm() {
     }, 0);
     const roundedTotal = Math.round(currentTotal * 100) / 100;
     setTotalBill(roundedTotal);
-  }, [watchedItems, JSON.stringify(watchedItems)]); // FIX: Add stable dependency to ensure recalculation
+  }, [JSON.stringify(watchedItems)]);
 
   useEffect(() => {
     async function fetchData() {
@@ -138,6 +141,7 @@ export function PurchaseForm() {
       formDataToSubmit.append('userId', data.userId);
       formDataToSubmit.append('partnerName', data.partnerName);
       formDataToSubmit.append('userName', data.userName);
+      formDataToSubmit.append('feedback', data.feedback || '');
 
       const itemsWithDisplayNames = data.items.map(item => ({
         ...item,
@@ -269,6 +273,7 @@ export function PurchaseForm() {
         [t('partnerName'), submittedBillData.partnerName],
         [t('userName'), submittedBillData.userName],
         [t('uploadedFilesLabel'), submittedBillData.uploadedFiles && submittedBillData.uploadedFiles.length > 0 ? submittedBillData.uploadedFiles.map(f => f.name).join(', ') : t('noFileUploaded')],
+        [t('feedback'), submittedBillData.feedback || t('noFeedbackProvided')],
         [],
         [t('totalBill'), submittedBillData.totalAmount?.toFixed(2) ?? '0.00']
       ];
@@ -577,9 +582,17 @@ export function PurchaseForm() {
             </div>
 
             <Separator />
-            <div className="text-right">
-              <h3 className="text-xl font-semibold">{t('totalBill')}: <span className="text-primary">{totalBill.toFixed(2)}</span></h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                <div>
+                    <Label htmlFor="feedback">{t('feedback')}</Label>
+                    <Textarea id="feedback" {...register('feedback')} placeholder={t('enterFeedback')} className="text-base md:text-sm" />
+                    {errors.feedback && <p className="text-sm text-destructive mt-1">{errors.feedback.message}</p>}
+                </div>
+                <div className="text-right">
+                    <h3 className="text-xl font-semibold">{t('totalBill')}: <span className="text-primary">{totalBill.toFixed(2)}</span></h3>
+                </div>
             </div>
+
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-base md:text-sm" disabled={isPending || isLoadingData}>
               {isPending ? `${t('submittingPurchase')}...` : t('submit')}

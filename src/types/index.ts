@@ -49,6 +49,7 @@ export interface PurchaseData {
   uploadedFiles?: UploadedFileMeta[]; // Array of uploaded file metadata
   createdAt: any; // Firestore Timestamp or Date
   totalAmount?: number; // Optional, can be calculated
+  feedback?: string;
 }
 
 export interface InventoryItem {

@@ -69,6 +69,7 @@ const FormSchema = z.object({
     .max(MAX_TOTAL_FILES, `You can upload a maximum of ${MAX_TOTAL_FILES} files.`)
     .optional()
     .default([]),
+  feedback: z.string().optional(),
 });
 
 
@@ -92,13 +93,14 @@ export async function submitPurchase(prevState: any, formData: FormData) {
     userName: formData.get('userName'),
     items: JSON.parse(formData.get('items') as string),
     uploadedFiles: formData.getAll('uploadedFiles').filter(f => (f as File).size > 0),
+    feedback: formData.get('feedback'),
   });
 
   if (!parsedData.success) {
     return { success: false, message: 'Invalid form data.', errors: parsedData.error.flatten().fieldErrors };
   }
 
-  const { userId, partnerName, userName, items, uploadedFiles } = parsedData.data;
+  const { userId, partnerName, userName, items, uploadedFiles, feedback } = parsedData.data;
 
   try {
     const uploadedFileMetas: UploadedFileMeta[] = [];
@@ -121,6 +123,7 @@ export async function submitPurchase(prevState: any, formData: FormData) {
       uploadedFiles: uploadedFileMetas,
       createdAt: serverTimestamp(),
       totalAmount,
+      feedback: feedback || '',
     });
     
     const returnData = {
@@ -131,6 +134,7 @@ export async function submitPurchase(prevState: any, formData: FormData) {
         items,
         uploadedFiles: uploadedFileMetas,
         totalAmount,
+        feedback: feedback || '',
     };
 
     return { success: true, message: 'Purchase submitted successfully.', data: returnData };
@@ -270,6 +274,7 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
             "Quantity": item.quantity,
             "Price per Unit": item.price,
             "Line Total": item.quantity * item.price,
+            "Feedback": p.feedback || "N/A",
             "Files": p.uploadedFiles?.map(f => f.url).join(', ') ?? 'None'
         }))
     );

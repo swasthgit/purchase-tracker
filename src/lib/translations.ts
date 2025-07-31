@@ -154,6 +154,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     clinicBulkUploadNote: 'Note: The file should have one column with a header like "clinic" or be a list of names. Duplicate clinic names will be ignored.',
     clickToUpload: 'Click to upload',
     orDragAndDrop: 'or drag and drop',
+    feedback: "Feedback / Grievances",
+    enterFeedback: "Enter your feedback or grievances here...",
+    noFeedbackProvided: "No feedback was provided.",
   },
   hi: {
     appName: 'खरीद ट्रैकर',
@@ -306,5 +309,8 @@ export const translations: Record<Locale, Record<string, string>> = {
     clinicBulkUploadNote: 'नोट: फ़ाइल में "क्लीनिक" जैसा हेडर वाला एक कॉलम होना चाहिए या नामों की सूची होनी चाहिए। डुप्लिकेट क्लीनिक नामों को अनदेखा कर दिया जाएगा।',
     clickToUpload: 'अपलोड करने के लिए क्लिक करें',
     orDragAndDrop: 'या खींचें और छोड़ें',
+    feedback: "प्रतिक्रिया / शिकायतें",
+    enterFeedback: "अपनी प्रतिक्रिया या शिकायतें यहां दर्ज करें...",
+    noFeedbackProvided: "कोई प्रतिक्रिया नहीं दी गई।",
   },
 };

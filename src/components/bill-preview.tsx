@@ -114,10 +114,18 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                   </li>
                 ))}
               </ul>
+            </>
+          )}
+
+          {billData.feedback && (
+            <>
               <Separator className="my-3"/>
+              <h4 className="font-semibold text-md mt-4 mb-2 section-title">{t('feedback')}:</h4>
+              <p className="text-sm bg-muted/50 p-3 rounded-md">{billData.feedback}</p>
             </>
           )}
           
+          <Separator className="my-3"/>
           <h4 className="font-semibold text-md mt-4 mb-2 section-title">{t('itemsPurchased')}:</h4>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm border">
@@ -129,8 +137,6 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                   <th className="p-2 border text-right">{t('itemLineTotal')}</th>
                 </tr>
               </thead>
-              {/* --- FIX START --- */}
-              {/* The tbody contains the corrected mapping logic without any misplaced comments. */}
               <tbody>
                 {itemsWithDisplayNames.map((item, index) => (
                   <tr key={item.id || index}>
@@ -141,7 +147,6 @@ export function BillPreview({ isOpen, onClose, billData, t, onDownloadExcel }: B
                   </tr>
                 ))}
               </tbody>
-              {/* --- FIX END --- */}
             </table>
           </div>
           

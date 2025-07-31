@@ -58,6 +58,7 @@ export function DetailedBillView() {
         [t('partnerName'), billData.partnerName],
         [t('userName'), billData.userName],
         [t('uploadedFilesLabel'), billData.uploadedFiles && billData.uploadedFiles.length > 0 ? billData.uploadedFiles.map(f => f.name).join(', ') : t('noFileUploaded')],
+        [t('feedback'), billData.feedback || t('noFeedbackProvided')],
         [], 
         [t('totalBill'), billData.totalAmount?.toFixed(2) ?? '0.00']
       ];
