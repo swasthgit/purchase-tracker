@@ -310,6 +310,7 @@ export const getPurchasesByDateRangeFS = async (startDate: Date, endDate: Date):
         uploadedFiles: uploadedFiles,
         createdAt: data.createdAt,
         totalAmount: data.totalAmount,
+        feedback: data.feedback,
       } as PurchaseData;
     });
   } catch (error) {
@@ -346,6 +347,7 @@ export const getLastNPurchasesFS = async (limitCount: number): Promise<PurchaseD
         uploadedFiles: uploadedFiles, 
         createdAt: data.createdAt,
         totalAmount: data.totalAmount,
+        feedback: data.feedback,
       } as PurchaseData;
     });
   } catch (error) {
