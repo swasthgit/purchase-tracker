@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { db, storage } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where, Timestamp } from 'firebase/firestore'; 
+import { collection, addDoc, serverTimestamp, doc, updateDoc, getDocs, query, where, Timestamp, writeBatch } from 'firebase/firestore'; 
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   OTHER_ITEM_VALUE,
@@ -23,8 +23,9 @@ import {
   updateInventoryItemFS,
   removeInventoryItemFS,
   bulkAddClinicsFS,
+  bulkAddDCMappingsFS,
 } from '@/lib/data';
-import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData, InventoryItem } from '@/types';
+import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData, InventoryItem, DCMapping } from '@/types';
 import * as XLSX from 'xlsx';
 
 
@@ -383,5 +384,76 @@ export async function bulkUploadClinicsAction(formData: FormData) {
   } catch (error) {
     console.error('Error processing bulk clinic upload:', error);
     return { success: false, message: 'Failed to process file. Ensure it is a valid CSV or Excel file.' };
+  }
+}
+
+// --- DC Mapping Actions ---
+function normalizeHeader(header: string): string {
+    return header.toLowerCase().replace(/\s+/g, '');
+}
+
+export async function bulkUploadDCMappingAction(formData: FormData) {
+  const file = formData.get('dcMappingFile') as File | null;
+  if (!file) {
+    return { success: false, message: 'No file uploaded.' };
+  }
+
+  try {
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+
+    if (data.length === 0) {
+      return { success: false, message: 'File is empty or has no data.' };
+    }
+
+    // Normalize headers from the first row of data
+    const headers = Object.keys(data[0]);
+    const normalizedHeaderMap: { [key: string]: string } = {};
+    const expectedHeaders: { [key: string]: keyof DCMapping } = {
+        statename: 'stateName',
+        partnername: 'partnerName',
+        oldecliniccode: 'oldEclinicCode',
+        newecliniccode: 'newEclinicCode',
+        regionname: 'regionName',
+        branchname: 'branchName',
+        dcname: 'dcName',
+        dcemployeecode: 'dcEmployeeCode',
+    };
+
+    headers.forEach(h => {
+        const normalized = normalizeHeader(h);
+        if (expectedHeaders[normalized]) {
+            normalizedHeaderMap[h] = expectedHeaders[normalized];
+        }
+    });
+
+    if (Object.keys(normalizedHeaderMap).length < Object.keys(expectedHeaders).length) {
+        return { success: false, message: 'File is missing required columns. Please check the file format.' };
+    }
+
+    const mappingsToUpload: Omit<DCMapping, 'id'>[] = data.map(row => {
+        const mapping: any = {};
+        for (const header in normalizedHeaderMap) {
+            const key = normalizedHeaderMap[header];
+            mapping[key] = row[header]?.toString().trim() || '';
+        }
+        return mapping as Omit<DCMapping, 'id'>;
+    }).filter(m => m.newEclinicCode); // Basic validation: ensure at least one key field exists
+
+    const result = await bulkAddDCMappingsFS(mappingsToUpload);
+    
+    let message = `Successfully processed ${result.count} mapping entries.`;
+    if (result.errors > 0) {
+      message += ` ${result.errors} entries were skipped due to issues.`;
+    }
+    return { success: true, message };
+
+  } catch (error) {
+    console.error('Error processing DC Mapping upload:', error);
+    return { success: false, message: 'Failed to process file. Ensure it is a valid and correctly formatted CSV or Excel file.' };
   }
 }

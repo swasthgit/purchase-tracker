@@ -1,5 +1,5 @@
 // src/lib/data.ts
-import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta, InventoryItem } from '@/types';
+import type { SelectOption, AdminManagedItem, Partner, ItemDefinition, PurchaseData, UploadedFileMeta, InventoryItem, DCMapping } from '@/types';
 import { db } from './firebase';
 import type { QuerySnapshot, Query } from 'firebase/firestore';
 import { collection, getDocs, addDoc, deleteDoc, doc, query, where, writeBatch, updateDoc, serverTimestamp, orderBy, Timestamp, limit, startAfter, setDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -533,5 +533,45 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
   } catch (error) {
      console.error("Error bulk adding clinics to Firestore:", error);
      return { success: false, count: 0, errors: clinicNames.filter(name => name.trim()) };
+  }
+};
+
+// --- DC Mapping Data Management ---
+export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
+  try {
+    const mappingsCollection = collection(db, 'dc_mappings');
+    const snapshot = await getDocs(query(mappingsCollection, orderBy("stateName"), orderBy("dcName")));
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as DCMapping));
+  } catch (error) {
+    console.error("Error fetching DC mappings from Firestore:", error);
+    return [];
+  }
+};
+
+export const bulkAddDCMappingsFS = async (mappings: Omit<DCMapping, 'id'>[]): Promise<{success: boolean, count: number, errors: number}> => {
+  const batch = writeBatch(db);
+  let processedCount = 0;
+  let errorCount = 0;
+
+  mappings.forEach(mapping => {
+    try {
+      // Use newEclinicCode as a unique identifier for the document to prevent duplicates on re-upload
+      const docRef = doc(db, 'dc_mappings', mapping.newEclinicCode);
+      batch.set(docRef, { ...mapping, updatedAt: serverTimestamp() });
+      processedCount++;
+    } catch (e) {
+      errorCount++;
+    }
+  });
+
+  try {
+    await batch.commit();
+    return { success: true, count: processedCount, errors: errorCount };
+  } catch (error) {
+    console.error("Error bulk adding DC mappings to Firestore:", error);
+    return { success: false, count: 0, errors: mappings.length };
   }
 };

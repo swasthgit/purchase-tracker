@@ -59,3 +59,15 @@ export interface InventoryItem {
   quantity: number;
   "approx price per unit": number;
 }
+
+export interface DCMapping {
+  id?: string;
+  stateName: string;
+  partnerName: string;
+  oldEclinicCode: string;
+  newEclinicCode: string;
+  regionName: string;
+  branchName: string;
+  dcName: string;
+  dcEmployeeCode: string;
+}
