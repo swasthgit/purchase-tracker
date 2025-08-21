@@ -540,11 +540,21 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
 export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
   try {
     const mappingsCollection = collection(db, 'dc_mappings');
-    const snapshot = await getDocs(query(mappingsCollection, orderBy("stateName"), orderBy("dcName")));
-    return snapshot.docs.map(doc => ({
+    // Simpler query to avoid composite index requirement
+    const snapshot = await getDocs(query(mappingsCollection, orderBy("dcName")));
+    
+    const data = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     } as DCMapping));
+
+    // Sort in-memory to achieve the desired order without a composite index
+    return data.sort((a, b) => {
+      const stateCompare = a.stateName.localeCompare(b.stateName);
+      if (stateCompare !== 0) return stateCompare;
+      return a.dcName.localeCompare(b.dcName);
+    });
+
   } catch (error) {
     console.error("Error fetching DC mappings from Firestore:", error);
     return [];

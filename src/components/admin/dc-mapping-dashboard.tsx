@@ -78,11 +78,12 @@ export function DCMappingDashboard() {
   }, [mappings]);
 
   const filteredMappings = useMemo(() => {
+    const lowercasedSearchTerm = searchTerm.toLowerCase();
     return mappings.filter(m => {
       const matchesDcName = selectedDcName === 'all' || m.dcName === selectedDcName;
-      const matchesSearchTerm = searchTerm.trim() === '' || 
+      const matchesSearchTerm = lowercasedSearchTerm.trim() === '' || 
         Object.values(m).some(value => 
-          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+          String(value).toLowerCase().includes(lowercasedSearchTerm)
         );
       return matchesDcName && matchesSearchTerm;
     });
