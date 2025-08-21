@@ -541,7 +541,7 @@ export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
   try {
     const mappingsCollection = collection(db, 'dc_mappings');
     // Simpler query to avoid composite index requirement
-    const snapshot = await getDocs(query(mappingsCollection, orderBy("dcName")));
+    const snapshot = await getDocs(query(mappingsCollection));
     
     const data = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -550,9 +550,14 @@ export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
 
     // Sort in-memory to achieve the desired order without a composite index
     return data.sort((a, b) => {
-      const stateCompare = a.stateName.localeCompare(b.stateName);
-      if (stateCompare !== 0) return stateCompare;
-      return a.dcName.localeCompare(b.dcName);
+      if (a.stateName && b.stateName) {
+          const stateCompare = a.stateName.localeCompare(b.stateName);
+          if (stateCompare !== 0) return stateCompare;
+      }
+      if (a.dcName && b.dcName) {
+          return a.dcName.localeCompare(b.dcName);
+      }
+      return 0;
     });
 
   } catch (error) {
@@ -562,26 +567,35 @@ export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
 };
 
 export const bulkAddDCMappingsFS = async (mappings: Omit<DCMapping, 'id'>[]): Promise<{success: boolean, count: number, errors: number}> => {
-  const batch = writeBatch(db);
+  const BATCH_SIZE = 450; // Firestore batch limit is 500, use a safe size
   let processedCount = 0;
   let errorCount = 0;
 
-  mappings.forEach(mapping => {
-    try {
-      // Use newEclinicCode as a unique identifier for the document to prevent duplicates on re-upload
-      const docRef = doc(db, 'dc_mappings', mapping.newEclinicCode);
-      batch.set(docRef, { ...mapping, updatedAt: serverTimestamp() });
-      processedCount++;
-    } catch (e) {
-      errorCount++;
-    }
-  });
+  for (let i = 0; i < mappings.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    const chunk = mappings.slice(i, i + BATCH_SIZE);
 
-  try {
-    await batch.commit();
-    return { success: true, count: processedCount, errors: errorCount };
-  } catch (error) {
-    console.error("Error bulk adding DC mappings to Firestore:", error);
-    return { success: false, count: 0, errors: mappings.length };
+    for (const mapping of chunk) {
+        try {
+            // Use newEclinicCode as a unique identifier for the document to prevent duplicates on re-upload
+            const docRef = doc(db, 'dc_mappings', mapping.newEclinicCode);
+            batch.set(docRef, { ...mapping, updatedAt: serverTimestamp() });
+            processedCount++;
+        } catch (e) {
+            console.error("Error processing a mapping row:", mapping, e);
+            errorCount++;
+        }
+    }
+    
+    try {
+        await batch.commit();
+    } catch (error) {
+        console.error("Error committing a batch of DC mappings to Firestore:", error);
+        // This entire batch failed, so we count all items in it as errors.
+        errorCount += chunk.length;
+        processedCount -= chunk.length; // Decrement the success count
+    }
   }
+
+  return { success: errorCount === 0, count: processedCount, errors: errorCount };
 };

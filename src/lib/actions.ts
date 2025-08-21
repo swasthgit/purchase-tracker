@@ -427,8 +427,12 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
         }
     });
 
-    if (Object.keys(normalizedHeaderMap).length < Object.keys(expectedHeaders).length) {
-         const missingHeaders = Object.keys(expectedHeaders).filter(eh => !Object.values(normalizedHeaderMap).includes(expectedHeaders[eh]));
+    const expectedKeys = Object.keys(expectedHeaders);
+    const foundKeys = Object.values(normalizedHeaderMap).map(v => expectedKeys.find(k => expectedHeaders[k] === v));
+    
+    if (foundKeys.length < expectedKeys.length) {
+         const missingKeys = expectedKeys.filter(eh => !foundKeys.includes(eh));
+         const missingHeaders = missingKeys.map(k => Object.keys(expectedHeaders).find(key => expectedHeaders[key] === k));
          return { success: false, message: `File is missing required columns. Missing: ${missingHeaders.join(', ')}` };
     }
 
@@ -439,11 +443,15 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
             mapping[key] = row[header]?.toString().trim() || '';
         }
         return mapping as Omit<DCMapping, 'id'>;
-    }).filter(m => m.newEclinicCode);
+    }).filter(m => m.newEclinicCode && m.dcName); // Ensure required fields are present
+
+    if (mappingsToUpload.length === 0) {
+        return { success: false, message: 'No valid data rows found to upload.' };
+    }
 
     const result = await bulkAddDCMappingsFS(mappingsToUpload);
     
-    let message = `Successfully processed ${result.count} mapping entries.`;
+    let message = `Successfully processed ${result.count} of ${mappingsToUpload.length} mapping entries.`;
     if (result.errors > 0) {
       message += ` ${result.errors} entries were skipped due to issues.`;
     }
