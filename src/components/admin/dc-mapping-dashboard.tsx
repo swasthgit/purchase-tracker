@@ -73,7 +73,7 @@ export function DCMappingDashboard() {
   };
 
   const dcNames = useMemo(() => {
-    const names = new Set(mappings.map(m => m.dcName));
+    const names = new Set(mappings.map(m => m.dcName).filter(Boolean)); // Filter out falsy values like ""
     return ['all', ...Array.from(names).sort()];
   }, [mappings]);
 
