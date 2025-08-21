@@ -540,7 +540,6 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
 export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
   try {
     const mappingsCollection = collection(db, 'dc_mappings');
-    // Simpler query to avoid composite index requirement
     const snapshot = await getDocs(query(mappingsCollection));
     
     const data = snapshot.docs.map(doc => ({
@@ -550,12 +549,12 @@ export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
 
     // Sort in-memory to achieve the desired order without a composite index
     return data.sort((a, b) => {
-      if (a.stateName && b.stateName) {
-          const stateCompare = a.stateName.localeCompare(b.stateName);
-          if (stateCompare !== 0) return stateCompare;
-      }
       if (a.dcName && b.dcName) {
-          return a.dcName.localeCompare(b.dcName);
+          const dcNameCompare = a.dcName.localeCompare(b.dcName);
+          if (dcNameCompare !== 0) return dcNameCompare;
+      }
+      if (a.stateName && b.stateName) {
+          return a.stateName.localeCompare(b.stateName);
       }
       return 0;
     });
@@ -577,9 +576,9 @@ export const bulkAddDCMappingsFS = async (mappings: Omit<DCMapping, 'id'>[]): Pr
 
     for (const mapping of chunk) {
         try {
-            // Use newEclinicCode as a unique identifier for the document to prevent duplicates on re-upload
-            const docRef = doc(db, 'dc_mappings', mapping.newEclinicCode);
-            batch.set(docRef, { ...mapping, updatedAt: serverTimestamp() });
+            // Generate a new unique document ID for every row to prevent overwrites/skips
+            const newDocRef = doc(collection(db, 'dc_mappings'));
+            batch.set(newDocRef, { ...mapping, id: newDocRef.id, updatedAt: serverTimestamp() });
             processedCount++;
         } catch (e) {
             console.error("Error processing a mapping row:", mapping, e);
@@ -591,9 +590,8 @@ export const bulkAddDCMappingsFS = async (mappings: Omit<DCMapping, 'id'>[]): Pr
         await batch.commit();
     } catch (error) {
         console.error("Error committing a batch of DC mappings to Firestore:", error);
-        // This entire batch failed, so we count all items in it as errors.
         errorCount += chunk.length;
-        processedCount -= chunk.length; // Decrement the success count
+        processedCount -= chunk.length; 
     }
   }
 
