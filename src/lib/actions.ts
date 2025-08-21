@@ -321,12 +321,10 @@ export async function updateInventoryItemAction(itemData: z.infer<typeof Invento
         return { success: false, message: validation.error.errors[0].message };
     }
 
-    // After validation, we explicitly check for the ID required for an update.
     if (!validation.data.id) {
         return { success: false, message: "Item ID is required for updates." };
     }
 
-    // Now TypeScript knows that validation.data has an ID.
     return updateInventoryItemFS(validation.data as InventoryItem);
 }
 
@@ -350,7 +348,6 @@ export async function bulkUploadClinicsAction(formData: FormData) {
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    // Use `raw: false` to get the formatted text, not the underlying value.
     const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
      if (!data || data.length === 0) {
@@ -358,7 +355,6 @@ export async function bulkUploadClinicsAction(formData: FormData) {
     }
 
     const headerRow = data[0] as string[];
-    // Normalize header: convert to lower case, trim, and replace underscores/multiple spaces
     const header = headerRow[0]?.toString().toLowerCase().trim().replace(/_/g, " ").replace(/\s+/, " ");
     
     let clinicsToUpload: string[] = [];
@@ -389,7 +385,8 @@ export async function bulkUploadClinicsAction(formData: FormData) {
 
 // --- DC Mapping Actions ---
 function normalizeHeader(header: string): string {
-    return header.toLowerCase().replace(/\s+/g, '');
+    if (typeof header !== 'string') return '';
+    return header.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 export async function bulkUploadDCMappingAction(formData: FormData) {
@@ -410,7 +407,6 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
       return { success: false, message: 'File is empty or has no data.' };
     }
 
-    // Normalize headers from the first row of data
     const headers = Object.keys(data[0]);
     const normalizedHeaderMap: { [key: string]: string } = {};
     const expectedHeaders: { [key: string]: keyof DCMapping } = {
@@ -432,7 +428,8 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
     });
 
     if (Object.keys(normalizedHeaderMap).length < Object.keys(expectedHeaders).length) {
-        return { success: false, message: 'File is missing required columns. Please check the file format.' };
+         const missingHeaders = Object.keys(expectedHeaders).filter(eh => !Object.values(normalizedHeaderMap).includes(expectedHeaders[eh]));
+         return { success: false, message: `File is missing required columns. Missing: ${missingHeaders.join(', ')}` };
     }
 
     const mappingsToUpload: Omit<DCMapping, 'id'>[] = data.map(row => {
@@ -442,7 +439,7 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
             mapping[key] = row[header]?.toString().trim() || '';
         }
         return mapping as Omit<DCMapping, 'id'>;
-    }).filter(m => m.newEclinicCode); // Basic validation: ensure at least one key field exists
+    }).filter(m => m.newEclinicCode);
 
     const result = await bulkAddDCMappingsFS(mappingsToUpload);
     
