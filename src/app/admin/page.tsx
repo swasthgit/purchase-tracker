@@ -1,4 +1,4 @@
-// src/app/admin/page.tsx (Corrected)
+// src/app/admin/page.tsx
 "use client";
 
 import React, { useState } from 'react';
@@ -10,13 +10,14 @@ import { PartnerManager } from '@/components/admin/partner-manager';
 import { PurchaseDataDownloader } from '@/components/admin/purchase-data-downloader';
 import { AnalyticsCharts } from '@/components/admin/analytics-charts';
 import { DetailedBillView } from '@/components/admin/detailed-bill-view';
+import { DCMappingUploader } from '@/components/admin/dc-mapping-uploader'; // New Import
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/hooks/use-language';
-import { Users, Printer, UploadCloud, ShieldAlert, ListChecks, Building, FileDown, BarChart2, Download, History, Loader2, Package } from 'lucide-react'; // Import Package icon
+import { Users, Printer, UploadCloud, ShieldAlert, ListChecks, Building, FileDown, BarChart2, Download, History, Loader2, Map } from 'lucide-react'; // Import Map icon
 import { useToast } from "@/hooks/use-toast";
 import { getPurchasesByDateRangeFS } from '@/lib/data';
 import type { PurchaseData } from '@/types';
@@ -160,6 +161,7 @@ export default function AdminPage() {
           <TabsTrigger value="partners"><Building className="w-4 h-4 mr-1"/>{t('managePartners')}</TabsTrigger>
           <TabsTrigger value="printer_names"><Printer className="w-4 h-4 mr-1"/>{t('managePrinterNames')}</TabsTrigger>
           <TabsTrigger value="bulk_upload"><UploadCloud className="w-4 h-4 mr-1"/>{t('bulkUploadEmployeeIds')}</TabsTrigger>
+          <TabsTrigger value="dc_mapping_upload"><Map className="w-4 h-4 mr-1"/>DC Mapping Upload</TabsTrigger>
           <TabsTrigger value="download_reports"><FileDown className="w-4 h-4 mr-1"/>{t('downloadReports')}</TabsTrigger>
           <TabsTrigger value="purchase_analytics"><BarChart2 className="w-4 h-4 mr-1"/>{t('analyticsReport')}</TabsTrigger>
           <TabsTrigger value="detailed_bill"><History className="w-4 h-4 mr-1"/>{t('detailedBill')}</TabsTrigger>
@@ -170,6 +172,7 @@ export default function AdminPage() {
         <TabsContent value="partners"><PartnerManager /></TabsContent>
         <TabsContent value="printer_names"><PrinterManager /></TabsContent>
         <TabsContent value="bulk_upload"><BulkIdUploader /></TabsContent>
+        <TabsContent value="dc_mapping_upload"><DCMappingUploader /></TabsContent>
         <TabsContent value="download_reports"><PurchaseDataDownloader /></TabsContent>
         <TabsContent value="detailed_bill"><DetailedBillView /></TabsContent>
 

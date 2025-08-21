@@ -1,31 +1,24 @@
 // src/components/admin/dc-mapping-dashboard.tsx
 "use client";
 
-import React, { useState, useEffect, useTransition, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { UploadCloud, Search, Users } from 'lucide-react';
+import { Search, Users } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import type { DCMapping } from '@/types';
 import { getDCMappingsFS } from '@/lib/data';
-import { bulkUploadDCMappingAction } from '@/lib/actions';
-import { useLanguage } from '@/hooks/use-language';
 
 export function DCMappingDashboard() {
-  const { t } = useLanguage();
   const { toast } = useToast();
-  const [isPending, startTransition] = useTransition();
   const [isLoading, setIsLoading] = useState(true);
   const [mappings, setMappings] = useState<DCMapping[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDcName, setSelectedDcName] = useState('all');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const fetchMappings = async () => {
     setIsLoading(true);
@@ -44,36 +37,8 @@ export function DCMappingDashboard() {
     fetchMappings();
   }, []);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-    } else {
-      setSelectedFile(null);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      toast({ variant: "destructive", title: t('errorOccurred'), description: "No file selected." });
-      return;
-    }
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.append('dcMappingFile', selectedFile);
-      const result = await bulkUploadDCMappingAction(formData);
-      if (result.success) {
-        toast({ title: t('operationSuccess'), description: result.message });
-        setSelectedFile(null);
-        fetchMappings(); // Refresh data after upload
-      } else {
-        toast({ variant: "destructive", title: t('errorOccurred'), description: result.message || t('errorOccurred') });
-      }
-    });
-  };
-
   const dcNames = useMemo(() => {
-    const names = new Set(mappings.map(m => m.dcName).filter(Boolean)); // Filter out falsy values like ""
+    const names = new Set(mappings.map(m => m.dcName).filter(Boolean));
     return ['all', ...Array.from(names).sort()];
   }, [mappings]);
 
@@ -91,29 +56,6 @@ export function DCMappingDashboard() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload DC Mapping Data</CardTitle>
-          <CardDescription>Upload a CSV or Excel file with the DC mapping information.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input 
-            type="file" 
-            onChange={handleFileChange} 
-            accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
-          />
-          {selectedFile && (
-            <div className="text-sm text-muted-foreground">
-              Selected: {selectedFile.name}
-            </div>
-          )}
-          <Button onClick={handleUpload} disabled={isPending || !selectedFile}>
-            <UploadCloud className="mr-2 h-4 w-4" />
-            {isPending ? "Uploading..." : "Upload File"}
-          </Button>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>DC Mapping Data</CardTitle>
