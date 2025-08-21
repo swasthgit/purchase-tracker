@@ -443,7 +443,7 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
             mapping[key] = row[header]?.toString().trim() || '';
         }
         return mapping as Omit<DCMapping, 'id'>;
-    }).filter(m => m.newEclinicCode && m.dcName); // Ensure required fields are present
+    });
 
     if (mappingsToUpload.length === 0) {
         return { success: false, message: 'No valid data rows found to upload.' };
