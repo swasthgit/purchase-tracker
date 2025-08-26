@@ -23,7 +23,7 @@ export const getEmployeeIdsFS = async (): Promise<SelectOption[]> => {
 
 export const addEmployeeIdFS = async (employeeIdValue: string): Promise<{success: boolean, message?: string}> => {
   try {
-    const cleanedEmployeeId = employeeIdValue.trim().replace(/[^x20-x7E]/g, '');
+    const cleanedEmployeeId = employeeIdValue.trim();
     if (!cleanedEmployeeId) return { success: false, message: 'emptyId' };
 
     const employeeIdsCollection = collection(db, 'employee_ids');
@@ -540,7 +540,7 @@ export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success:
 export const getDCMappingsFS = async (): Promise<DCMapping[]> => {
   try {
     const mappingsCollection = collection(db, 'dc_mappings');
-    const snapshot = await getDocs(query(mappingsCollection));
+    const snapshot = await getDocs(query(mappingsCollection, orderBy("dcName")));
     
     const data = snapshot.docs.map(doc => ({
       id: doc.id,
