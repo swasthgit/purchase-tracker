@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, PlusCircle, Copy, UploadCloud, Info, XCircle } from 'lucide-react';
+import { Trash2, PlusCircle, Copy, UploadCloud, Info, XCircle, Search } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import type { SelectOption, Partner, ItemDefinition, PurchaseData } from '@/types';
 import { getEmployeeIdsFS, getPartnerNames, getItemNames, OTHER_ITEM_VALUE } from '@/lib/data';
@@ -79,6 +79,9 @@ export function PurchaseForm() {
   const [employeeIdOptions, setEmployeeIdOptions] = useState<SelectOption[]>([]);
   const [partnerOptions, setPartnerOptions] = useState<Partner[]>([]);
   const [itemDefinitionOptions, setItemDefinitionOptions] = useState<ItemDefinition[]>([]);
+
+  const [userIdSearchTerm, setUserIdSearchTerm] = useState('');
+  const [partnerSearchTerm, setPartnerSearchTerm] = useState('');
 
   const [filePreviews, setFilePreviews] = useState<FileWithPreview[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,6 +307,14 @@ export function PurchaseForm() {
     label: item.value === OTHER_ITEM_VALUE ? t('other') : item.label,
   }));
 
+  const filteredEmployeeIds = employeeIdOptions.filter(emp => 
+    emp.label.toLowerCase().includes(userIdSearchTerm.toLowerCase())
+  );
+
+  const filteredPartners = partnerOptions.filter(partner => 
+    partner.name.toLowerCase().includes(partnerSearchTerm.toLowerCase())
+  );
+
   return (
     <>
       <Card className="w-full max-w-4xl mx-auto my-8 shadow-xl">
@@ -325,14 +336,25 @@ export function PurchaseForm() {
                         <SelectValue placeholder={t('selectUserId')} />
                       </SelectTrigger>
                       <SelectContent>
+                        <div className="p-2">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Search User ID..."
+                              className="pl-8 w-full"
+                              value={userIdSearchTerm}
+                              onChange={(e) => setUserIdSearchTerm(e.target.value)}
+                            />
+                          </div>
+                        </div>
                         {isLoadingData ? (
                           <SelectItem value="loading" disabled>{t('loading')}</SelectItem>
-                        ) : employeeIdOptions.length > 0 ? (
-                          employeeIdOptions.map(emp => (
+                        ) : filteredEmployeeIds.length > 0 ? (
+                          filteredEmployeeIds.map(emp => (
                             <SelectItem key={emp.value} value={emp.value}>{emp.label}</SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="no_ids" disabled>{t('noEmployeeIds')}</SelectItem>
+                          <div className="text-center text-sm text-muted-foreground p-2">No IDs found.</div>
                         )}
                       </SelectContent>
                     </Select>
@@ -359,14 +381,25 @@ export function PurchaseForm() {
                         <SelectValue placeholder={t('selectPartnerName')} />
                       </SelectTrigger>
                       <SelectContent>
+                        <div className="p-2">
+                           <div className="relative">
+                               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                               <Input 
+                                   placeholder="Search partners..." 
+                                   className="pl-8 w-full"
+                                   value={partnerSearchTerm}
+                                   onChange={(e) => setPartnerSearchTerm(e.target.value)}
+                              />
+                           </div>
+                        </div>
                         {isLoadingData ? (
                           <SelectItem value="loading" disabled>{t('loading')}</SelectItem>
-                        ) : partnerOptions.length > 0 ? (
-                          partnerOptions.map(partner => (
+                        ) : filteredPartners.length > 0 ? (
+                          filteredPartners.map(partner => (
                             <SelectItem key={partner.id} value={partner.name}>{partner.name}</SelectItem>
                           ))
                         ) : (
-                          <SelectItem value="no_partners" disabled>{t('noPartners')}</SelectItem>
+                          <div className="text-center text-sm text-muted-foreground p-2">No partners found.</div>
                         )}
                       </SelectContent>
                     </Select>
