@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ShieldAlert } from 'lucide-react';
 import InventoryCrudManager from '@/components/admin/inventory-crud-manager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BulkClinicUploader } from '@/components/admin/bulk-clinic-uploader';
 import { BulkInventoryUploader } from '@/components/admin/bulk-inventory-uploader';
 import { ListChecks, UploadCloud } from 'lucide-react';
 
@@ -70,7 +69,6 @@ export default function InventoryAdminPage() {
             <TabsList className="flex flex-wrap h-auto justify-center mb-6">
                 <TabsTrigger value="manage_inventory"><ListChecks className="w-4 h-4 mr-1"/>Manage Inventory</TabsTrigger>
                 <TabsTrigger value="bulk_upload_inventory"><UploadCloud className="w-4 h-4 mr-1"/>Bulk Upload Inventory</TabsTrigger>
-                <TabsTrigger value="bulk_upload_clinics"><UploadCloud className="w-4 h-4 mr-1"/>Bulk Upload Clinics</TabsTrigger>
             </TabsList>
             <TabsContent value="manage_inventory">
                 <InventoryCrudManager />
@@ -78,12 +76,7 @@ export default function InventoryAdminPage() {
              <TabsContent value="bulk_upload_inventory">
                 <BulkInventoryUploader />
             </TabsContent>
-            <TabsContent value="bulk_upload_clinics">
-                <BulkClinicUploader />
-            </TabsContent>
         </Tabs>
     </div>
   );
 }
-
-    
