@@ -24,6 +24,7 @@ import {
   removeInventoryItemFS,
   bulkAddClinicsFS,
   bulkAddDCMappingsFS,
+  bulkAddInventoryFS,
 } from '@/lib/data';
 import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData, InventoryItem, DCMapping } from '@/types';
 import * as XLSX from 'xlsx';
@@ -462,3 +463,86 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
     return { success: false, message: 'Failed to process file. Ensure it is a valid and correctly formatted CSV or Excel file.' };
   }
 }
+
+export async function bulkUploadInventoryAction(formData: FormData) {
+  const file = formData.get('inventoryFile') as File | null;
+  if (!file) {
+    return { success: false, message: 'No file uploaded.' };
+  }
+
+  try {
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+
+    if (data.length === 0) {
+      return { success: false, message: 'File is empty or has no data rows.' };
+    }
+
+    const headers = Object.keys(data[0]);
+    const headerMap: { [key: string]: string } = {};
+    const expectedHeaders = ['clinic_name', 'clinic name', 'item_name', 'item name', 'quantity', 'price', 'approx_price_per_unit'];
+    
+    headers.forEach(h => {
+        const normalized = h.toLowerCase().trim();
+        if (expectedHeaders.includes(normalized)) {
+            if (normalized === 'clinic_name' || normalized === 'clinic name') headerMap[h] = 'clinicName';
+            else if (normalized === 'item_name' || normalized === 'item name') headerMap[h] = 'itemName';
+            else if (normalized === 'quantity') headerMap[h] = 'quantity';
+            else if (normalized === 'price' || normalized === 'approx_price_per_unit') headerMap[h] = 'price';
+        }
+    });
+    
+    const requiredMappedHeaders = ['clinicName', 'itemName', 'quantity', 'price'];
+    const foundMappedHeaders = Object.values(headerMap);
+    if (!requiredMappedHeaders.every(h => foundMappedHeaders.includes(h))) {
+        return { success: false, message: 'File is missing required columns. Required headers are: clinic_name, item_name, quantity, price.' };
+    }
+
+    const inventoryItems: Omit<InventoryItem, 'id'>[] = data.map(row => {
+      const item: any = {};
+      for (const originalHeader in headerMap) {
+        const mappedKey = headerMap[originalHeader];
+        let value = row[originalHeader];
+        if (mappedKey === 'quantity' || mappedKey === 'price') {
+            value = parseFloat(value) || 0;
+        } else {
+            value = value?.toString().trim() || '';
+        }
+        if (mappedKey === 'price') {
+          item['approx price per unit'] = value;
+        } else if (mappedKey === 'itemName') {
+          item['item name'] = value;
+        }
+        else {
+          item[mappedKey] = value;
+        }
+      }
+      return item as Omit<InventoryItem, 'id'>;
+    }).filter(item => item.clinicName && item['item name']); // Ensure mandatory fields are present
+
+    if (inventoryItems.length === 0) {
+      return { success: false, message: 'No valid inventory items found in the file.' };
+    }
+    
+    const result = await bulkAddInventoryFS(inventoryItems);
+
+    let message = `Successfully processed ${result.added} new inventory items.`;
+    if (result.updated > 0) {
+      message += ` Updated ${result.updated} existing items.`;
+    }
+    if (result.errors > 0) {
+      message += ` Failed to process ${result.errors} items.`;
+    }
+    return { success: true, message };
+    
+  } catch (error) {
+    console.error('Error processing bulk inventory upload:', error);
+    return { success: false, message: 'Failed to process file. Ensure it is a valid and correctly formatted Excel/CSV file.' };
+  }
+}
+
+    

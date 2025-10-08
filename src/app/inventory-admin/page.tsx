@@ -12,6 +12,7 @@ import { ShieldAlert } from 'lucide-react';
 import InventoryCrudManager from '@/components/admin/inventory-crud-manager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BulkClinicUploader } from '@/components/admin/bulk-clinic-uploader';
+import { BulkInventoryUploader } from '@/components/admin/bulk-inventory-uploader';
 import { ListChecks, UploadCloud } from 'lucide-react';
 
 const ADMIN_USERNAME = process.env.NEXT_PUBLIC_INVENTORY_ADMIN_USERNAME || "tracker321";
@@ -68,10 +69,14 @@ export default function InventoryAdminPage() {
         <Tabs defaultValue="manage_inventory" className="w-full">
             <TabsList className="flex flex-wrap h-auto justify-center mb-6">
                 <TabsTrigger value="manage_inventory"><ListChecks className="w-4 h-4 mr-1"/>Manage Inventory</TabsTrigger>
+                <TabsTrigger value="bulk_upload_inventory"><UploadCloud className="w-4 h-4 mr-1"/>Bulk Upload Inventory</TabsTrigger>
                 <TabsTrigger value="bulk_upload_clinics"><UploadCloud className="w-4 h-4 mr-1"/>Bulk Upload Clinics</TabsTrigger>
             </TabsList>
             <TabsContent value="manage_inventory">
                 <InventoryCrudManager />
+            </TabsContent>
+             <TabsContent value="bulk_upload_inventory">
+                <BulkInventoryUploader />
             </TabsContent>
             <TabsContent value="bulk_upload_clinics">
                 <BulkClinicUploader />
@@ -80,3 +85,5 @@ export default function InventoryAdminPage() {
     </div>
   );
 }
+
+    

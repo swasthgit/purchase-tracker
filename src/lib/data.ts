@@ -74,7 +74,7 @@ export const bulkAddEmployeeIdsFS = async (ids: string[]): Promise<{success: boo
   const uniqueNewIds = new Set<string>();
 
   for (const id of ids) {
-    const trimmedId = id.trim().replace(/[^x20-x7E]/g, '');
+    const trimmedId = id.trim().replace(/[^ -~]/g, '');
     if (trimmedId && !existingIds.has(trimmedId) && !uniqueNewIds.has(trimmedId)) {
       uniqueNewIds.add(trimmedId);
       const newDocRef = doc(collection(db, 'employee_ids'));
@@ -576,7 +576,7 @@ export const bulkAddDCMappingsFS = async (mappings: Omit<DCMapping, 'id'>[]): Pr
 
     for (const mapping of chunk) {
         try {
-            // Generate a new unique document ID for every row to prevent overwrites/skips
+            // Use addDoc to auto-generate a unique document ID
             const newDocRef = doc(collection(db, 'dc_mappings'));
             batch.set(newDocRef, { ...mapping, id: newDocRef.id, updatedAt: serverTimestamp() });
             processedCount++;
@@ -597,3 +597,78 @@ export const bulkAddDCMappingsFS = async (mappings: Omit<DCMapping, 'id'>[]): Pr
 
   return { success: errorCount === 0, count: processedCount, errors: errorCount };
 };
+
+// --- Inventory Bulk Upload ---
+export const bulkAddInventoryFS = async (items: Omit<InventoryItem, 'id'>[]): Promise<{ success: boolean; added: number; updated: number; errors: number; }> => {
+    let addedCount = 0;
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    const itemsByClinic: Record<string, Omit<InventoryItem, 'id' | 'clinicName'>[]> = {};
+
+    // Group items by clinic
+    for (const item of items) {
+        if (!itemsByClinic[item.clinicName]) {
+            itemsByClinic[item.clinicName] = [];
+        }
+        itemsByClinic[item.clinicName].push({
+            "item name": item["item name"],
+            quantity: item.quantity,
+            "approx price per unit": item["approx price per unit"],
+        });
+    }
+
+    for (const clinicName in itemsByClinic) {
+        try {
+            const clinicDocRef = doc(db, 'inventory', clinicName);
+            const clinicDoc = await getDoc(clinicDocRef);
+            const itemsToAdd = itemsByClinic[clinicName];
+
+            if (clinicDoc.exists()) {
+                // Clinic exists, update its items
+                const existingItems: InventoryItem[] = clinicDoc.data().items || [];
+                const itemsToUpdate: any[] = [];
+                
+                for (const newItem of itemsToAdd) {
+                    const existingItemIndex = existingItems.findIndex(ei => ei["item name"].toLowerCase() === newItem["item name"].toLowerCase());
+                    
+                    if (existingItemIndex > -1) {
+                        // Item exists, update it
+                        const existingItem = existingItems[existingItemIndex];
+                        const updatedItem = {
+                            ...existingItem,
+                            quantity: newItem.quantity,
+                            "approx price per unit": newItem["approx price per unit"],
+                        };
+                        // To update an array element, we remove the old and add the new
+                        await updateDoc(clinicDocRef, { items: arrayRemove(existingItem) });
+                        await updateDoc(clinicDocRef, { items: arrayUnion(updatedItem) });
+                        updatedCount++;
+                    } else {
+                        // Item is new for this clinic
+                        itemsToUpdate.push({ id: uuidv4(), ...newItem });
+                        addedCount++;
+                    }
+                }
+                if (itemsToUpdate.length > 0) {
+                     await updateDoc(clinicDocRef, { items: arrayUnion(...itemsToUpdate) });
+                }
+            } else {
+                // Clinic doesn't exist, create it with all its items
+                const newItemsWithIds = itemsToAdd.map(item => ({ id: uuidv4(), ...item }));
+                await setDoc(clinicDocRef, {
+                    items: newItemsWithIds,
+                    createdAt: serverTimestamp(),
+                });
+                addedCount += newItemsWithIds.length;
+            }
+        } catch (error) {
+            console.error(`Error processing inventory for clinic ${clinicName}:`, error);
+            errorCount += itemsByClinic[clinicName].length;
+        }
+    }
+
+    return { success: errorCount === 0, added: addedCount, updated: updatedCount, errors: errorCount };
+};
+
+    
