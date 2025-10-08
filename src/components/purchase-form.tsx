@@ -336,7 +336,7 @@ export function PurchaseForm() {
                         <SelectValue placeholder={t('selectUserId')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <div className="p-2">
+                        <div className="p-2" onPointerDown={(e) => e.stopPropagation()}>
                           <div className="relative">
                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -381,7 +381,7 @@ export function PurchaseForm() {
                         <SelectValue placeholder={t('selectPartnerName')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <div className="p-2">
+                        <div className="p-2" onPointerDown={(e) => e.stopPropagation()}>
                            <div className="relative">
                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                <Input 
