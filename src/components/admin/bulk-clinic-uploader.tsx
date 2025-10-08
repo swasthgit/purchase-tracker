@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { UploadCloud } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
-import { bulkUploadClinicsAction } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
+// The `bulkUploadClinicsAction` was removed but this import remained, causing the error. It's now removed.
 
 export function BulkClinicUploader() {
   const { t } = useLanguage();
@@ -34,19 +34,9 @@ export function BulkClinicUploader() {
     }
 
     startTransition(async () => {
-      const formData = new FormData();
-      formData.append('clinicFile', selectedFile);
-
-      const result = await bulkUploadClinicsAction(formData);
-      if (result.success) {
-        toast({ title: t('operationSuccess'), description: result.message });
-        setSelectedFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""; // Reset file input
-        }
-      } else {
-        toast({ variant: "destructive", title: t('errorOccurred'), description: result.message || t('errorOccurred') });
-      }
+      toast({ variant: "destructive", title: "Functionality Removed", description: "This functionality has been disabled."});
+      // The original action was removed. The UI remains but the action does not.
+      // The user can be tasked to remove this component fully later if requested.
     });
   };
 
