@@ -17,8 +17,9 @@ import { PlusCircle, Edit, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { InventoryItem } from '@/types';
 
-const initialFormState: Omit<InventoryItem, 'id'> = {
+const initialFormState: Partial<Omit<InventoryItem, 'id'>> = {
   clinicName: '',
+  clinicType: '',
   "item name": '',
   quantity: 0,
   "approx price per unit": 0,
@@ -32,7 +33,7 @@ const InventoryCrudManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
-  const [formData, setFormData] = useState<Omit<InventoryItem, 'id'>>(initialFormState);
+  const [formData, setFormData] = useState<Partial<Omit<InventoryItem, 'id'>>>(initialFormState);
   const [itemToRemove, setItemToRemove] = useState<InventoryItem | null>(null);
 
 
@@ -68,6 +69,7 @@ const InventoryCrudManager: React.FC = () => {
     setEditingItem(item);
     setFormData({
       clinicName: item.clinicName,
+      clinicType: item.clinicType || '',
       "item name": item["item name"],
       quantity: item.quantity,
       "approx price per unit": item["approx price per unit"],
@@ -108,6 +110,7 @@ const InventoryCrudManager: React.FC = () => {
 
   const filteredItems = inventoryData.filter(item =>
     item.clinicName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.clinicType && item.clinicType.toLowerCase().includes(searchTerm.toLowerCase())) ||
     item["item name"].toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -130,10 +133,10 @@ const InventoryCrudManager: React.FC = () => {
         <CardContent className="space-y-6">
           <div>
             <Input
-              placeholder="Search by clinic or item name..."
+              placeholder="Search by clinic name, type, or item name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
+              className="max-w-md"
             />
           </div>
           <ScrollArea className="h-[60vh] border rounded-lg">
@@ -141,6 +144,7 @@ const InventoryCrudManager: React.FC = () => {
               <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
                   <TableHead>Clinic Name</TableHead>
+                  <TableHead>Clinic Type</TableHead>
                   <TableHead>Item Name</TableHead>
                   <TableHead className="text-right">Quantity</TableHead>
                   <TableHead className="text-right">Approx Price</TableHead>
@@ -152,6 +156,7 @@ const InventoryCrudManager: React.FC = () => {
                   Array.from({ length: 5 }).map((_, index) => (
                     <TableRow key={index}>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-4 w-20" /></TableCell>
@@ -162,6 +167,7 @@ const InventoryCrudManager: React.FC = () => {
                   filteredItems.map(item => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.clinicName}</TableCell>
+                      <TableCell>{item.clinicType || 'N/A'}</TableCell>
                       <TableCell>{item["item name"]}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{item["approx price per unit"].toFixed(2)}</TableCell>
@@ -177,7 +183,7 @@ const InventoryCrudManager: React.FC = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">
+                    <TableCell colSpan={6} className="text-center h-24">
                       No inventory items found.
                     </TableCell>
                   </TableRow>
@@ -199,10 +205,20 @@ const InventoryCrudManager: React.FC = () => {
               <Input
                 id="clinicName"
                 name="clinicName"
-                value={formData.clinicName}
+                value={formData.clinicName || ''}
                 onChange={handleInputChange}
                 placeholder="e.g., clinic 8"
                 required
+              />
+            </div>
+            <div>
+              <Label htmlFor="clinicType">Clinic Type</Label>
+              <Input
+                id="clinicType"
+                name="clinicType"
+                value={formData.clinicType || ''}
+                onChange={handleInputChange}
+                placeholder="e.g., Type A"
               />
             </div>
             <div>
@@ -210,7 +226,7 @@ const InventoryCrudManager: React.FC = () => {
               <Input
                 id="item name"
                 name="item name"
-                value={formData["item name"]}
+                value={formData["item name"] || ''}
                 onChange={handleInputChange}
                 placeholder="e.g., Syringe"
                 required

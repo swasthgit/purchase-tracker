@@ -90,6 +90,7 @@ export function BulkInventoryUploader() {
         </Button>
         <div className="text-xs text-muted-foreground space-y-1">
             <p><strong>Required Headers:</strong> `clinic_name`, `item_name`, `quantity`, `price`.</p>
+            <p><strong>Optional Header:</strong> `clinic_type`.</p>
             <p><strong>Note:</strong> If an item already exists for a clinic, its quantity and price will be updated. Otherwise, a new item will be created. If the clinic does not exist, it will be created automatically.</p>
         </div>
       </CardContent>

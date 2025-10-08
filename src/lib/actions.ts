@@ -302,6 +302,7 @@ export async function downloadPurchasesByDateRangeAction(prevState: any, formDat
 // --- Inventory Actions ---
 const InventoryItemPayloadSchema = z.object({
   clinicName: z.string().min(1, "Clinic name is required"),
+  clinicType: z.string().optional(),
   id: z.string().optional(), // For updates, potentially undefined for new items
   "item name": z.string().min(1, "Item name is required"),
   quantity: z.coerce.number().min(0, "Quantity cannot be negative"),
@@ -475,7 +476,6 @@ export async function bulkUploadInventoryAction(formData: FormData) {
     const buffer = Buffer.from(bytes);
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
     const data: any[] = XLSX.utils.sheet_to_json(sheet);
 
     if (data.length === 0) {
@@ -484,15 +484,25 @@ export async function bulkUploadInventoryAction(formData: FormData) {
 
     const headers = Object.keys(data[0]);
     const headerMap: { [key: string]: string } = {};
-    const expectedHeaders = ['clinic_name', 'clinic name', 'item_name', 'item name', 'quantity', 'price', 'approx_price_per_unit'];
+    // Loosely match headers
+    const expectedHeaders: Record<string, string> = {
+      'clinic_name': 'clinicName',
+      'clinic name': 'clinicName',
+      'clinic_type': 'clinicType',
+      'clinic type': 'clinicType',
+      'item_name': 'itemName',
+      'item name': 'itemName',
+      'quantity': 'quantity',
+      'price per unit': 'price',
+      'price per ur': 'price',
+      'price': 'price',
+      'approx_price_per_unit': 'price',
+    };
     
     headers.forEach(h => {
         const normalized = h.toLowerCase().trim();
-        if (expectedHeaders.includes(normalized)) {
-            if (normalized === 'clinic_name' || normalized === 'clinic name') headerMap[h] = 'clinicName';
-            else if (normalized === 'item_name' || normalized === 'item name') headerMap[h] = 'itemName';
-            else if (normalized === 'quantity') headerMap[h] = 'quantity';
-            else if (normalized === 'price' || normalized === 'approx_price_per_unit') headerMap[h] = 'price';
+        if (expectedHeaders[normalized]) {
+            headerMap[h] = expectedHeaders[normalized];
         }
     });
     
@@ -512,12 +522,12 @@ export async function bulkUploadInventoryAction(formData: FormData) {
         } else {
             value = value?.toString().trim() || '';
         }
+
         if (mappedKey === 'price') {
           item['approx price per unit'] = value;
         } else if (mappedKey === 'itemName') {
           item['item name'] = value;
-        }
-        else {
+        } else {
           item[mappedKey] = value;
         }
       }
@@ -544,5 +554,3 @@ export async function bulkUploadInventoryAction(formData: FormData) {
     return { success: false, message: 'Failed to process file. Ensure it is a valid and correctly formatted Excel/CSV file.' };
   }
 }
-
-    

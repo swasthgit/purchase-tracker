@@ -370,6 +370,7 @@ export const getInventoryFS = async (): Promise<InventoryItem[]> => {
         return clinicData.items.map((item: any) => ({
           id: item.id,
           clinicName: clinicName,
+          clinicType: item.clinicType,
           "item name": item["item name"] || 'N/A',
           quantity: item.quantity || 0,
           "approx price per unit": item["approx price per unit"] || 0,
@@ -399,8 +400,11 @@ export const getClinicsFS = async (): Promise<{id: string, name: string}[]> => {
 };
 
 // --- Inventory Management (CUD) ---
-export const addInventoryItemFS = async (itemData: Omit<InventoryItem, 'id'>): Promise<{success: boolean, message?: string}> => {
+export const addInventoryItemFS = async (itemData: Partial<Omit<InventoryItem, 'id'>>): Promise<{success: boolean, message?: string}> => {
   try {
+    if (!itemData.clinicName) {
+      return { success: false, message: 'Clinic name is required.' };
+    }
     const clinicDocRef = doc(db, 'inventory', itemData.clinicName);
     const newItem = {
         ...itemData,
@@ -413,7 +417,7 @@ export const addInventoryItemFS = async (itemData: Omit<InventoryItem, 'id'>): P
     return { success: true };
   } catch (error: any) {
     // If the document does not exist, Firestore throws an error. We can catch it and create the document.
-    if (error.code === 'not-found' || error.message.includes('No document to update')) {
+    if ((error.code === 'not-found' || error.message.includes('No document to update')) && itemData.clinicName) {
         try {
             const clinicDocRef = doc(db, 'inventory', itemData.clinicName);
             const newItem = {
@@ -453,6 +457,7 @@ export const updateInventoryItemFS = async (itemData: InventoryItem): Promise<{s
     // Create the updated item
     const updatedItem = {
       ...itemToUpdate,
+      clinicType: itemData.clinicType,
       "item name": itemData["item name"],
       quantity: itemData.quantity,
       "approx price per unit": itemData["approx price per unit"],
@@ -615,6 +620,7 @@ export const bulkAddInventoryFS = async (items: Omit<InventoryItem, 'id'>[]): Pr
             "item name": item["item name"],
             quantity: item.quantity,
             "approx price per unit": item["approx price per unit"],
+            clinicType: item.clinicType,
         });
     }
 
@@ -639,6 +645,7 @@ export const bulkAddInventoryFS = async (items: Omit<InventoryItem, 'id'>[]): Pr
                             ...existingItem,
                             quantity: newItem.quantity,
                             "approx price per unit": newItem["approx price per unit"],
+                            clinicType: newItem.clinicType,
                         };
                         // To update an array element, we remove the old and add the new
                         await updateDoc(clinicDocRef, { items: arrayRemove(existingItem) });

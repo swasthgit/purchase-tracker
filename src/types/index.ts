@@ -55,6 +55,7 @@ export interface PurchaseData {
 export interface InventoryItem {
   id: string;
   clinicName: string;
+  clinicType?: string;
   "item name": string;
   quantity: number;
   "approx price per unit": number;
