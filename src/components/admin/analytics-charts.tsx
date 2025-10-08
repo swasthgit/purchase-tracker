@@ -162,7 +162,6 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummar
             <Treemap
                 data={chartData(userWiseSummary)}
                 dataKey="size"
-                ratio={4 / 3}
                 stroke="#fff"
                 fill="#8884d8"
                 content={<CustomizedTreemapContent />}
