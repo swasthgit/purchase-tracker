@@ -343,54 +343,6 @@ export async function deleteAllInventoryAction() {
 }
 
 
-// --- Clinic Bulk Upload ---
-export async function bulkUploadClinicsAction(formData: FormData) {
-  const file = formData.get('clinicFile') as File | null;
-  if (!file) {
-    return { success: false, message: 'No file uploaded.' };
-  }
-
-  try {
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-
-     if (!data || data.length === 0) {
-        return { success: false, message: "File is empty." };
-    }
-
-    const headerRow = data[0] as string[];
-    const header = headerRow[0]?.toString().toLowerCase().trim().replace(/_/g, " ").replace(/\s+/, " ");
-    
-    let clinicsToUpload: string[] = [];
-
-    if (header === 'clinic' || header === 'clinic name') { 
-       clinicsToUpload = (data.slice(1) as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
-    } else {
-      clinicsToUpload = (data as string[][]).map(row => row[0]?.toString().trim()).filter(Boolean);
-    }
-    
-    if (clinicsToUpload.length === 0) {
-      return { success: false, message: 'No valid clinic names found in the file. Ensure the header is "clinic" or "clinic name" or provide a list of names.' };
-    }
-
-    const result = await bulkAddClinicsFS(clinicsToUpload);
-    
-    let message = `Successfully added ${result.count} new clinics.`;
-    if (result.errors.length > 0) {
-      message += ` ${result.errors.length} clinics already existed or were duplicates/invalid: ${result.errors.slice(0,5).join(', ')}${result.errors.length > 5 ? '...' : ''}.`;
-    }
-    return { success: true, message };
-
-  } catch (error) {
-    console.error('Error processing bulk clinic upload:', error);
-    return { success: false, message: 'Failed to process file. Ensure it is a valid CSV or Excel file.' };
-  }
-}
-
 // --- DC Mapping Actions ---
 function normalizeHeader(header: string): string {
     if (typeof header !== 'string') return '';
@@ -408,6 +360,7 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
     const buffer = Buffer.from(bytes);
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
     const data: any[] = XLSX.utils.sheet_to_json(sheet);
 
     if (data.length === 0) {
@@ -481,7 +434,8 @@ export async function bulkUploadInventoryAction(formData: FormData) {
     const buffer = Buffer.from(bytes);
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
-    const data: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[] = XLSX.utils.sheet_to_json(sheet);
 
     if (data.length === 0) {
       return { success: false, message: 'File is empty or has no data rows.' };
