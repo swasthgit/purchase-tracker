@@ -90,7 +90,19 @@ const InventoryCrudManager: React.FC = () => {
     e.preventDefault();
     startTransition(async () => {
       const payload = { ...formData, id: editingItem?.id };
-      const action = editingItem ? updateInventoryItemAction(payload) : addInventoryItemAction(payload);
+
+      // Type assertion to satisfy the action's expected parameters
+      const actionPayload = {
+          ...payload,
+          clinicName: payload.clinicName!,
+          "item name": payload["item name"]!,
+          quantity: payload.quantity!,
+          "approx price per unit": payload["approx price per unit"]!,
+      };
+
+      const action = editingItem 
+        ? updateInventoryItemAction(actionPayload as InventoryItem) 
+        : addInventoryItemAction(actionPayload);
       
       const result = await action;
       if (result.success) {
