@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useTransition } from 'react';
 import { getInventoryFS } from '@/lib/data';
-import { addInventoryItemAction, updateInventoryItemAction, removeInventoryItemAction } from '@/lib/actions';
+import { addInventoryItemAction, updateInventoryItemAction, removeInventoryItemAction, deleteAllInventoryAction } from '@/lib/actions';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -35,6 +35,7 @@ const InventoryCrudManager: React.FC = () => {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState<Partial<Omit<InventoryItem, 'id'>>>(initialFormState);
   const [itemToRemove, setItemToRemove] = useState<InventoryItem | null>(null);
+  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
 
 
   const fetchInventory = async () => {
@@ -108,6 +109,19 @@ const InventoryCrudManager: React.FC = () => {
     });
   };
 
+  const handleDeleteAll = async () => {
+    startTransition(async () => {
+        const result = await deleteAllInventoryAction();
+        if (result.success) {
+            toast({ title: "Success", description: "All inventory data has been deleted." });
+            fetchInventory(); // Re-fetch to show the empty state
+        } else {
+            toast({ variant: "destructive", title: "Error", description: result.message || "Failed to delete inventory." });
+        }
+        setIsDeleteAllDialogOpen(false);
+    });
+  };
+
   const filteredItems = inventoryData.filter(item =>
     item.clinicName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.clinicType && item.clinicType.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -126,6 +140,9 @@ const InventoryCrudManager: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-2">
                 <Button onClick={handleAddNew} size="sm">
                   <PlusCircle className="h-4 w-4 mr-2" /> Add New Item
+                </Button>
+                <Button onClick={() => setIsDeleteAllDialogOpen(true)} size="sm" variant="destructive" disabled={inventoryData.length === 0}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete All
                 </Button>
             </div>
           </div>
@@ -281,6 +298,23 @@ const InventoryCrudManager: React.FC = () => {
               {isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete all inventory data across all clinics.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsDeleteAllDialogOpen(false)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAll} disabled={isPending} className="bg-destructive hover:bg-destructive/90">
+                    {isPending ? "Deleting..." : "Yes, delete all"}
+                </AlertDialogAction>
+            </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>

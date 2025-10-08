@@ -25,6 +25,7 @@ import {
   bulkAddClinicsFS,
   bulkAddDCMappingsFS,
   bulkAddInventoryFS,
+  deleteAllInventoryFS,
 } from '@/lib/data';
 import type { PurchaseItem, ItemDefinition, Partner, UploadedFileMeta, PurchaseData, InventoryItem, DCMapping } from '@/types';
 import * as XLSX from 'xlsx';
@@ -336,6 +337,11 @@ export async function removeInventoryItemAction(clinicName: string, itemId: stri
     }
     return removeInventoryItemFS(clinicName, itemId);
 }
+
+export async function deleteAllInventoryAction() {
+  return deleteAllInventoryFS();
+}
+
 
 // --- Clinic Bulk Upload ---
 export async function bulkUploadClinicsAction(formData: FormData) {

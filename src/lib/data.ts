@@ -504,6 +504,28 @@ export const removeInventoryItemFS = async (clinicName: string, itemId: string):
   }
 };
 
+export async function deleteAllInventoryFS(): Promise<{success: boolean, message?: string}> {
+  try {
+    const inventoryCollection = collection(db, 'inventory');
+    const snapshot = await getDocs(inventoryCollection);
+    
+    if (snapshot.empty) {
+      return { success: true, message: "Inventory is already empty." };
+    }
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting all inventory from Firestore:", error);
+    return { success: false, message: 'An error occurred while deleting the inventory.' };
+  }
+}
+
 
 // --- Clinic Bulk Upload ---
 export const bulkAddClinicsFS = async (clinicNames: string[]): Promise<{success: boolean, count: number, errors: string[]}> => {
