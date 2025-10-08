@@ -402,7 +402,6 @@ export async function bulkUploadDCMappingAction(formData: FormData) {
     const buffer = Buffer.from(bytes);
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
     const data: any[] = XLSX.utils.sheet_to_json(sheet);
 
     if (data.length === 0) {
@@ -476,7 +475,7 @@ export async function bulkUploadInventoryAction(formData: FormData) {
     const buffer = Buffer.from(bytes);
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
-    const data: any[] = XLSX.utils.sheet_to_json(sheet);
+    const data: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
     if (data.length === 0) {
       return { success: false, message: 'File is empty or has no data rows.' };
@@ -484,19 +483,20 @@ export async function bulkUploadInventoryAction(formData: FormData) {
 
     const headers = Object.keys(data[0]);
     const headerMap: { [key: string]: string } = {};
-    // Loosely match headers
     const expectedHeaders: Record<string, string> = {
       'clinic_name': 'clinicName',
       'clinic name': 'clinicName',
+      'clinic_nam': 'clinicName', // Typo from user image
       'clinic_type': 'clinicType',
       'clinic type': 'clinicType',
       'item_name': 'itemName',
       'item name': 'itemName',
       'quantity': 'quantity',
       'price per unit': 'price',
-      'price per ur': 'price',
+      'price per ur': 'price', // Typo from user image
       'price': 'price',
       'approx_price_per_unit': 'price',
+      'approx price per unit': 'price',
     };
     
     headers.forEach(h => {
@@ -517,6 +517,7 @@ export async function bulkUploadInventoryAction(formData: FormData) {
       for (const originalHeader in headerMap) {
         const mappedKey = headerMap[originalHeader];
         let value = row[originalHeader];
+
         if (mappedKey === 'quantity' || mappedKey === 'price') {
             value = parseFloat(value) || 0;
         } else {
@@ -532,7 +533,7 @@ export async function bulkUploadInventoryAction(formData: FormData) {
         }
       }
       return item as Omit<InventoryItem, 'id'>;
-    }).filter(item => item.clinicName && item['item name']); // Ensure mandatory fields are present
+    }).filter(item => item.clinicName && item['item name']);
 
     if (inventoryItems.length === 0) {
       return { success: false, message: 'No valid inventory items found in the file.' };

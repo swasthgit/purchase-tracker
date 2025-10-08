@@ -609,7 +609,7 @@ export const bulkAddInventoryFS = async (items: Omit<InventoryItem, 'id'>[]): Pr
     let updatedCount = 0;
     let errorCount = 0;
 
-    const itemsByClinic: Record<string, Omit<InventoryItem, 'id' | 'clinicName'>[]> = {};
+    const itemsByClinic: { [clinicName: string]: Omit<InventoryItem, 'id' | 'clinicName'>[] } = {};
 
     // Group items by clinic
     for (const item of items) {
@@ -623,46 +623,48 @@ export const bulkAddInventoryFS = async (items: Omit<InventoryItem, 'id'>[]): Pr
             clinicType: item.clinicType,
         });
     }
-
-    for (const clinicName in itemsByClinic) {
+    
+    // Process each clinic's items
+    for (const clinicName of Object.keys(itemsByClinic)) {
         try {
             const clinicDocRef = doc(db, 'inventory', clinicName);
-            const clinicDoc = await getDoc(clinicDocRef);
-            const itemsToAdd = itemsByClinic[clinicName];
+            const clinicDocSnap = await getDoc(clinicDocRef);
+            const itemsForClinic = itemsByClinic[clinicName];
+            
+            if (clinicDocSnap.exists()) {
+                // Clinic exists: update items
+                const existingItems: InventoryItem[] = clinicDocSnap.data().items || [];
+                const updatedItems = [...existingItems];
+                const newItemsToAdd = [];
 
-            if (clinicDoc.exists()) {
-                // Clinic exists, update its items
-                const existingItems: InventoryItem[] = clinicDoc.data().items || [];
-                const itemsToUpdate: any[] = [];
-                
-                for (const newItem of itemsToAdd) {
-                    const existingItemIndex = existingItems.findIndex(ei => ei["item name"].toLowerCase() === newItem["item name"].toLowerCase());
-                    
+                for (const newItem of itemsForClinic) {
+                    const existingItemIndex = updatedItems.findIndex(ei => ei["item name"].toLowerCase() === newItem["item name"].toLowerCase());
+
                     if (existingItemIndex > -1) {
-                        // Item exists, update it
-                        const existingItem = existingItems[existingItemIndex];
-                        const updatedItem = {
-                            ...existingItem,
+                        // Item exists, update it in the local array
+                        updatedItems[existingItemIndex] = {
+                            ...updatedItems[existingItemIndex],
                             quantity: newItem.quantity,
                             "approx price per unit": newItem["approx price per unit"],
-                            clinicType: newItem.clinicType,
+                            clinicType: newItem.clinicType || updatedItems[existingItemIndex].clinicType, // Preserve existing type if new one is empty
                         };
-                        // To update an array element, we remove the old and add the new
-                        await updateDoc(clinicDocRef, { items: arrayRemove(existingItem) });
-                        await updateDoc(clinicDocRef, { items: arrayUnion(updatedItem) });
                         updatedCount++;
                     } else {
                         // Item is new for this clinic
-                        itemsToUpdate.push({ id: uuidv4(), ...newItem });
+                        newItemsToAdd.push({ id: uuidv4(), clinicName: clinicName, ...newItem });
                         addedCount++;
                     }
                 }
-                if (itemsToUpdate.length > 0) {
-                     await updateDoc(clinicDocRef, { items: arrayUnion(...itemsToUpdate) });
-                }
+                
+                await updateDoc(clinicDocRef, { items: [...updatedItems, ...newItemsToAdd], updatedAt: serverTimestamp() });
+
             } else {
-                // Clinic doesn't exist, create it with all its items
-                const newItemsWithIds = itemsToAdd.map(item => ({ id: uuidv4(), ...item }));
+                // Clinic doesn't exist: create it with all its items
+                const newItemsWithIds = itemsForClinic.map(item => ({
+                    id: uuidv4(),
+                    clinicName: clinicName,
+                    ...item
+                }));
                 await setDoc(clinicDocRef, {
                     items: newItemsWithIds,
                     createdAt: serverTimestamp(),
@@ -677,5 +679,3 @@ export const bulkAddInventoryFS = async (items: Omit<InventoryItem, 'id'>[]): Pr
 
     return { success: errorCount === 0, added: addedCount, updated: updatedCount, errors: errorCount };
 };
-
-    
