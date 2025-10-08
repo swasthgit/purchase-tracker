@@ -57,12 +57,8 @@ const renderColorfulLegendText = (value: string, entry: any) => {
 const CustomizedTreemapContent = (props: any) => {
     const { root, depth, x, y, width, height, index, payload, rank, name } = props;
     
-    if (width < 20 || height < 20) return null;
-
-    const isRoot = depth === 1;
-    const fontSize = isRoot ? 16 : 12;
-    const fontColor = '#fff';
-
+    // We only want to render the colored rectangles, not the text.
+    // The tooltip will handle showing the name and value.
     return (
         <g>
             <rect
@@ -77,17 +73,6 @@ const CustomizedTreemapContent = (props: any) => {
                     strokeOpacity: 1 / (depth + 1e-10),
                 }}
             />
-            <text
-                x={x + width / 2}
-                y={y + height / 2}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={fontColor}
-                fontSize={fontSize}
-                fillOpacity={1}
-            >
-                {name}
-            </text>
         </g>
     );
 };
