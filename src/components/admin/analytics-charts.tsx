@@ -167,7 +167,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummar
                 fill="#8884d8"
                 content={<CustomizedTreemapContent />}
             >
-                <Tooltip formatter={(value: number, name: string) => [value.toFixed(2), name]}/>
+                <Tooltip formatter={(value: number, name: string) => [`${(value || 0).toFixed(2)}`, name]}/>
             </Treemap>
         </ChartCard>
       </div>
