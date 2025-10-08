@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useTransition } from 'react';
-import { getInventoryFS } from '@/lib/data';
+import { getInventoryFS, getClinicsFS } from '@/lib/data';
 import { addInventoryItemAction, updateInventoryItemAction, removeInventoryItemAction, deleteAllInventoryAction } from '@/lib/actions';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from '@/components/ui/label';
 import { useToast } from "@/hooks/use-toast";
-import { PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { InventoryItem } from '@/types';
 
 const initialFormState: Partial<Omit<InventoryItem, 'id'>> = {
@@ -29,7 +30,10 @@ const InventoryCrudManager: React.FC = () => {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [inventoryData, setInventoryData] = useState<InventoryItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [clinics, setClinics] = useState<{ id: string, name: string }[]>([]);
+  const [selectedClinic, setSelectedClinic] = useState<string>('');
+  const [clinicSearchTerm, setClinicSearchTerm] = useState('');
+  const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -37,22 +41,22 @@ const InventoryCrudManager: React.FC = () => {
   const [itemToRemove, setItemToRemove] = useState<InventoryItem | null>(null);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
 
-
-  const fetchInventory = async () => {
+  const fetchInventoryAndClinics = async () => {
     setIsLoading(true);
     try {
-      const data = await getInventoryFS();
+      const [data, clinicList] = await Promise.all([getInventoryFS(), getClinicsFS()]);
       setInventoryData(data);
+      setClinics(clinicList.sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
-      console.error("Failed to fetch inventory:", error);
-      toast({ variant: "destructive", title: "Error", description: "Failed to fetch inventory." });
+      console.error("Failed to fetch inventory data:", error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to fetch inventory data." });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchInventory();
+    fetchInventoryAndClinics();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,8 +65,12 @@ const InventoryCrudManager: React.FC = () => {
   };
 
   const handleAddNew = () => {
+    if (!selectedClinic) {
+        toast({ variant: "destructive", title: "No Clinic Selected", description: "Please select a clinic before adding a new item." });
+        return;
+    }
     setEditingItem(null);
-    setFormData(initialFormState);
+    setFormData({ ...initialFormState, clinicName: selectedClinic });
     setIsDialogOpen(true);
   };
 
@@ -88,7 +96,7 @@ const InventoryCrudManager: React.FC = () => {
       if (result.success) {
         toast({ title: "Success", description: `Inventory item ${editingItem ? 'updated' : 'added'}.` });
         setIsDialogOpen(false);
-        fetchInventory();
+        fetchInventoryAndClinics();
       } else {
         toast({ variant: "destructive", title: "Error", description: result.message || "An unknown error occurred." });
       }
@@ -101,7 +109,7 @@ const InventoryCrudManager: React.FC = () => {
       const result = await removeInventoryItemAction(itemToRemove.clinicName, itemToRemove.id);
       if (result.success) {
         toast({ title: "Success", description: `Item "${itemToRemove['item name']}" deleted.` });
-        fetchInventory();
+        fetchInventoryAndClinics();
       } else {
         toast({ variant: "destructive", title: "Error", description: result.message || "Failed to delete item." });
       }
@@ -114,19 +122,25 @@ const InventoryCrudManager: React.FC = () => {
         const result = await deleteAllInventoryAction();
         if (result.success) {
             toast({ title: "Success", description: "All inventory data has been deleted." });
-            fetchInventory(); // Re-fetch to show the empty state
+            fetchInventoryAndClinics(); // Re-fetch to show the empty state
+            setSelectedClinic(''); // Reset clinic selection
         } else {
             toast({ variant: "destructive", title: "Error", description: result.message || "Failed to delete inventory." });
         }
         setIsDeleteAllDialogOpen(false);
     });
   };
-
-  const filteredItems = inventoryData.filter(item =>
-    item.clinicName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.clinicType && item.clinicType.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    item["item name"].toLowerCase().includes(searchTerm.toLowerCase())
+  
+  const filteredClinics = clinics.filter(clinic => 
+    clinic.name.toLowerCase().includes(clinicSearchTerm.toLowerCase())
   );
+
+  const filteredItems = selectedClinic 
+    ? inventoryData.filter(item => 
+        item.clinicName === selectedClinic &&
+        item["item name"].toLowerCase().includes(itemSearchTerm.toLowerCase())
+      ) 
+    : [];
 
   return (
     <>
@@ -135,10 +149,10 @@ const InventoryCrudManager: React.FC = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
               <CardTitle className="text-2xl font-bold">Inventory Management</CardTitle>
-              <CardDescription>Add, edit, or delete inventory items.</CardDescription>
+              <CardDescription>Select a clinic to add, edit, or delete its inventory items.</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={handleAddNew} size="sm">
+                <Button onClick={handleAddNew} size="sm" disabled={!selectedClinic}>
                   <PlusCircle className="h-4 w-4 mr-2" /> Add New Item
                 </Button>
                 <Button onClick={() => setIsDeleteAllDialogOpen(true)} size="sm" variant="destructive" disabled={inventoryData.length === 0}>
@@ -148,13 +162,42 @@ const InventoryCrudManager: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div>
-            <Input
-              placeholder="Search by clinic name, type, or item name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-md"
-            />
+          <div className="flex flex-col sm:flex-row gap-4">
+              <div className="w-full sm:w-1/2">
+                 <Label htmlFor="clinic-select">Select Clinic</Label>
+                <Select onValueChange={setSelectedClinic} value={selectedClinic} disabled={isLoading}>
+                    <SelectTrigger id="clinic-select" className="w-full">
+                        <SelectValue placeholder="Select a clinic..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                         <div className="p-2">
+                             <div className="relative">
+                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                 <Input 
+                                     placeholder="Search clinics..." 
+                                     className="pl-8 w-full"
+                                     value={clinicSearchTerm}
+                                     onChange={(e) => setClinicSearchTerm(e.target.value)}
+                                />
+                             </div>
+                        </div>
+                        {filteredClinics.map(clinic => (
+                            <SelectItem key={clinic.id} value={clinic.name}>{clinic.name}</SelectItem>
+                        ))}
+                        {filteredClinics.length === 0 && <div className="text-center text-sm text-muted-foreground p-2">No clinics found.</div>}
+                    </SelectContent>
+                </Select>
+              </div>
+            <div className="w-full sm:w-1/2">
+                <Label htmlFor="item-search">Search Items</Label>
+                <Input
+                    id="item-search"
+                    placeholder="Search by item name..."
+                    value={itemSearchTerm}
+                    onChange={(e) => setItemSearchTerm(e.target.value)}
+                    disabled={!selectedClinic}
+                />
+            </div>
           </div>
           <ScrollArea className="h-[60vh] border rounded-lg">
             <Table>
@@ -172,12 +215,7 @@ const InventoryCrudManager: React.FC = () => {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, index) => (
                     <TableRow key={index}>
-                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-16" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-4 w-20" /></TableCell>
-                      <TableCell className="text-center"><Skeleton className="h-8 w-20" /></TableCell>
+                      <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredItems.length > 0 ? (
@@ -201,7 +239,7 @@ const InventoryCrudManager: React.FC = () => {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center h-24">
-                      No inventory items found.
+                      {selectedClinic ? "No inventory items found for this clinic." : "Please select a clinic to view its inventory."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -226,6 +264,7 @@ const InventoryCrudManager: React.FC = () => {
                 onChange={handleInputChange}
                 placeholder="e.g., clinic 8"
                 required
+                disabled // Clinic name is determined by selection
               />
             </div>
             <div>

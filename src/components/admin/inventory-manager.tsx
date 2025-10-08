@@ -105,8 +105,10 @@ const InventoryManager: React.FC = () => {
               <TableHeader className="sticky top-0 bg-background">
                 <TableRow>
                   <TableHead>Item Name</TableHead>
+                  <TableHead>Clinic Type</TableHead>
                   <TableHead className="text-right">Quantity</TableHead>
                   <TableHead className="text-right">Approx Price</TableHead>
+                  <TableHead className="text-right">Total Price</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -114,21 +116,25 @@ const InventoryManager: React.FC = () => {
                   Array.from({ length: 5 }).map((_, index) => (
                     <TableRow key={index}>
                       <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-4 w-16" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-24" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredItems.length > 0 ? (
                   filteredItems.map(item => (
                     <TableRow key={item.id}>
                       <TableCell>{item["item name"]}</TableCell>
+                      <TableCell>{item.clinicType || 'N/A'}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{item["approx price per unit"].toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium">{(item.quantity * item["approx price per unit"]).toFixed(2)}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center h-24">
+                    <TableCell colSpan={5} className="text-center h-24">
                       {selectedClinic ? "No inventory items found for this clinic." : "Please select a clinic to view items."}
                     </TableCell>
                   </TableRow>
