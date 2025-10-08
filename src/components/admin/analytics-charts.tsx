@@ -1,8 +1,8 @@
-// src/components/admin/analytics-charts.tsx (Corrected)
+// src/components/admin/analytics-charts.tsx
 "use client";
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LegendProps } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Treemap } from 'recharts';
 import { useLanguage } from '@/hooks/use-language';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -17,8 +17,6 @@ interface AnalyticsChartsProps {
 const COLORS = ['#3b82f6', '#16a34a', '#f97316', '#ef4444', '#8b5cf6', '#ec4899', '#facc15', '#14b8a6', '#6b7280'];
 const MAX_PIE_SLICES = 6;
 
-// --- FIX START ---
-// The type for the 'children' prop has been corrected to React.ReactElement.
 const ChartCard = ({ title, children }: { title: string; children: React.ReactElement }) => (
   <Card>
     <CardHeader>
@@ -31,7 +29,6 @@ const ChartCard = ({ title, children }: { title: string; children: React.ReactEl
     </CardContent>
   </Card>
 );
-// --- FIX END ---
 
 const processPieData = (data: Record<string, number>, t: (key: string) => string) => {
   const sortedData = Object.entries(data)
@@ -56,11 +53,51 @@ const renderColorfulLegendText = (value: string, entry: any) => {
   return <span style={{ color }}>{value}</span>;
 };
 
+// Custom content component for Treemap
+const CustomizedTreemapContent = (props: any) => {
+    const { root, depth, x, y, width, height, index, payload, rank, name } = props;
+    
+    if (width < 20 || height < 20) return null;
+
+    const isRoot = depth === 1;
+    const fontSize = isRoot ? 16 : 12;
+    const fontColor = '#fff';
+
+    return (
+        <g>
+            <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                style={{
+                    fill: COLORS[index % COLORS.length],
+                    stroke: '#fff',
+                    strokeWidth: 2 / (depth + 1e-10),
+                    strokeOpacity: 1 / (depth + 1e-10),
+                }}
+            />
+            <text
+                x={x + width / 2}
+                y={y + height / 2}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={fontColor}
+                fontSize={fontSize}
+                fillOpacity={1}
+            >
+                {name}
+            </text>
+        </g>
+    );
+};
+
+
 export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummary, clinicCodeWiseSummary, partnerWiseSummary, itemWiseSummary, userWiseSummary }) => {
   const { t } = useLanguage();
 
   const chartData = (summary: Record<string, number>) =>
-    Object.entries(summary).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    Object.entries(summary).map(([name, value]) => ({ name, value, size: value })).sort((a, b) => b.value - a.value);
 
   const formatYAxisTick = (value: string) => {
     if (value.length > 15) {
@@ -137,14 +174,16 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummar
       </ChartCard>
       <div className="md:col-span-2">
         <ChartCard title={t('userWiseSummary')}>
-          <BarChart data={chartData(userWiseSummary)} layout="vertical" margin={{ top: 20, right: 30, left: 40, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" />
-            <YAxis dataKey="name" type="category" width={100} interval={0} />
-            <Tooltip formatter={(value: number) => value.toFixed(2)} />
-            <Legend />
-            <Bar dataKey="value" fill={COLORS[2]} name={t('totalAmount')} />
-          </BarChart>
+            <Treemap
+                data={chartData(userWiseSummary)}
+                dataKey="size"
+                ratio={4 / 3}
+                stroke="#fff"
+                fill="#8884d8"
+                content={<CustomizedTreemapContent />}
+            >
+                <Tooltip formatter={(value: number, name: string) => [value.toFixed(2), name]}/>
+            </Treemap>
         </ChartCard>
       </div>
     </div>
