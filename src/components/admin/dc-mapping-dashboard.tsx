@@ -92,7 +92,6 @@ export function DCMappingDashboard() {
                         className="w-full"
                         />
                     </div>
-                    <SelectItem value="">All E-clinics</SelectItem>
                     {filteredEclinicOptions.map(eclinic => (
                         <SelectItem key={eclinic} value={eclinic}>{eclinic}</SelectItem>
                     ))}
