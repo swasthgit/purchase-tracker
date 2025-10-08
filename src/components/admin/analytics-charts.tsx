@@ -133,7 +133,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummar
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value: number) => value.toFixed(2)} />
+          <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
           <Legend layout="vertical" align="right" verticalAlign="middle" formatter={renderColorfulLegendText} />
         </PieChart>
       </ChartCard>
@@ -153,7 +153,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummar
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value: number) => value.toFixed(2)} />
+          <Tooltip formatter={(value: any) => Number(value).toFixed(2)} />
           <Legend layout="vertical" align="right" verticalAlign="middle" formatter={renderColorfulLegendText} />
         </PieChart>
       </ChartCard>
@@ -166,7 +166,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ dateWiseSummar
                 fill="#8884d8"
                 content={<CustomizedTreemapContent />}
             >
-                <Tooltip formatter={(value, name, props) => [props.payload.name, Number(value || 0).toFixed(2)]} />
+                <Tooltip formatter={(value: any, name: any, props: any) => [props.payload?.name, Number(value || 0).toFixed(2)]} />
             </Treemap>
         </ChartCard>
       </div>
