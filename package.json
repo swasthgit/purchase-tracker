@@ -7,9 +7,12 @@
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
+    "export": "next build && next export",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "firebase:deploy": "npm run build && firebase deploy",
+    "firebase:deploy:hosting": "npm run build && firebase deploy --only hosting"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
