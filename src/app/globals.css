@@ -110,5 +110,16 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
+  }
+  html {
+    overflow-x: hidden;
+  }
+
+  /* Fix for mobile dropdown issues */
+  @media (max-width: 768px) {
+    [data-radix-select-content] {
+      max-width: calc(100vw - 2rem) !important;
+    }
   }
 }

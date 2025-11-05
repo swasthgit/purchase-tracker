@@ -317,22 +317,22 @@ export function PurchaseForm() {
 
   return (
     <>
-      <Card className="w-full max-w-4xl mx-auto my-8 shadow-xl">
+      <Card className="w-full max-w-4xl mx-auto my-8 shadow-xl overflow-visible">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center text-primary">{t('appName')}</CardTitle>
           <CardDescription className="text-center">{t('appDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+              <div className="w-full min-w-0">
                 <Label htmlFor="userId">{t('userId')}</Label>
                 <Controller
                   name="userId"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingData || employeeIdOptions.length === 0}>
-                      <SelectTrigger id="userId" className="text-base md:text-sm">
+                      <SelectTrigger id="userId" className="text-base md:text-sm w-full">
                         <SelectValue placeholder={t('selectUserId')} />
                       </SelectTrigger>
                       <SelectContent>
@@ -370,14 +370,14 @@ export function PurchaseForm() {
                 )}
                 {errors.userId && <p className="text-sm text-destructive mt-1">{errors.userId.message}</p>}
               </div>
-              <div>
+              <div className="w-full min-w-0">
                 <Label htmlFor="partnerName">{t('partnerName')}</Label>
                 <Controller
                   name="partnerName"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingData || partnerOptions.length === 0}>
-                      <SelectTrigger id="partnerName" className="text-base md:text-sm">
+                      <SelectTrigger id="partnerName" className="text-base md:text-sm w-full">
                         <SelectValue placeholder={t('selectPartnerName')} />
                       </SelectTrigger>
                       <SelectContent>
@@ -433,18 +433,18 @@ export function PurchaseForm() {
               const itemDef = itemDefinitionOptions.find(i => i.id === currentItemValueForLogic && i.id !== OTHER_ITEM_VALUE);
 
               return (
-                <Card key={item.id} className="p-4 space-y-4 bg-muted/30">
+                <Card key={item.id} className="p-4 space-y-4 bg-muted/30 overflow-visible">
                   <CardHeader className="p-0 mb-2">
                     <CardTitle className="text-lg">{t('itemDetails')} #{index + 1}</CardTitle>
                   </CardHeader>
                   <CardContent className="p-0 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                      <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start w-full">
+                      <div className="w-full min-w-0">
                         <Label htmlFor={`items.${index}.clinicCode`}>{t('clinicCode')}</Label>
-                        <Input id={`items.${index}.clinicCode`} {...register(`items.${index}.clinicCode`)} className="text-base md:text-sm" />
+                        <Input id={`items.${index}.clinicCode`} {...register(`items.${index}.clinicCode`)} className="text-base md:text-sm w-full" />
                         {errors.items?.[index]?.clinicCode && <p className="text-sm text-destructive mt-1">{errors.items?.[index]?.clinicCode?.message}</p>}
                       </div>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2 w-full min-w-0">
                         <Label htmlFor={`items.${index}.itemName`}>{t('itemName')}</Label>
                         <Controller
                           name={`items.${index}.itemName`}
@@ -455,7 +455,7 @@ export function PurchaseForm() {
                               value={field.value}
                               disabled={isLoadingData || translatedItemDefinitions.length === 0}
                             >
-                              <SelectTrigger id={`items.${index}.itemName`} className="text-base md:text-sm">
+                              <SelectTrigger id={`items.${index}.itemName`} className="text-base md:text-sm w-full">
                                 <SelectValue placeholder={t('selectItemName')} />
                               </SelectTrigger>
                               <SelectContent>
