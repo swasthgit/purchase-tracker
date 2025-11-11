@@ -23,11 +23,6 @@ export interface PurchaseItem {
   itemNameDisplay: string; // The final display name (either item.label or customItemName)
 }
 
-export interface AdminManagedItem {
-  id: string; // Firestore document ID
-  name: string;
-}
-
 export interface Partner {
   id: string; // Firestore document ID
   name: string;
@@ -50,25 +45,4 @@ export interface PurchaseData {
   createdAt: any; // Firestore Timestamp or Date
   totalAmount?: number; // Optional, can be calculated
   feedback?: string;
-}
-
-export interface InventoryItem {
-  id: string;
-  clinicName: string;
-  clinicType?: string;
-  "item name": string;
-  quantity: number;
-  "approx price per unit": number;
-}
-
-export interface DCMapping {
-  id?: string;
-  stateName: string;
-  partnerName: string;
-  oldEclinicCode: string;
-  newEclinicCode: string;
-  regionName: string;
-  branchName: string;
-  dcName: string;
-  dcEmployeeCode: string;
 }
