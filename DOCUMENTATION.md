@@ -1,6 +1,8 @@
 
 # Purchase Tracker Application: End-to-End Documentation
 
+## purchasetracker2 is hosting and PrchaseTrackerFurniture is storage
+
 ## 1. Introduction
 
 This document provides a comprehensive overview of the **Purchase Tracker** application, detailing its architecture, features, and workflows from both a user and an administrative perspective.
